@@ -100,3 +100,13 @@ Known pitfalls: [...]
 1. Refactor for clarity, DRY, maintainability
 2. Ensure tests still pass
 3. Coverage >= 80%
+
+## Stuck-Recovery Protocol
+
+After 3+ failures on the same problem with variations of the same approach, STOP and apply the `hacker` role (prompt in `.pi/prompts/shared-agents.md`) with:
+- Stuck description (what was being attempted)
+- Full attempts log (each approach + failure mode)
+- Story CONSTRAINTS (from Structured Specification)
+- Story GOAL
+
+Hacker returns ranked alternatives: bypass options, reframe options, or an escalation path. NEVER auto-apply — surface options to the user and get explicit direction before changing approach.

@@ -2,96 +2,75 @@
 description: Run a Socratic interview to clarify vague requirements before story creation. Optionally run just the Ontology Gate as a quality check on an existing story.
 ---
 
-Conduct a structured Socratic interview to clarify a feature idea before creating a story. The argument "$ARGUMENTS" describes the feature or includes flags.
+Conduct a structured Socratic interview to clarify a feature idea before creating a story. This skill orchestrates shared agents (`ontologist`, `socratic-interviewer`, `breadth-keeper`, `simplifier`, `seed-closer`) — one per role, each invoked via the Task tool.
+
+The argument `"$ARGUMENTS"` describes the feature or includes flags.
 
 ## Arguments
 
-- `--gate-only` — Skip interview, just run the Ontology Gate (4 questions) on an existing story
-- `--max-rounds N` (default: 5) — Maximum interview rounds before forcing closure
+- `--gate-only` — Skip interview, just run the Ontology Gate on an existing story (delegates to `ontologist` in gate-only mode)
+- `--max-rounds N` (default: 5) — Hard cap on interview rounds
 - (default) — Run full interview on the described feature
 
 ## Mode 1: Full Interview
 
 ### Step 1: Analyze the Request
 
-Read the user's feature description and determine:
+Read the user's feature description. Classify:
 
-1. **Ambiguity level**: Is this vague enough to need an interview?
-   - Vague (1-2 sentences, unclear scope) → Proceed with interview
-   - Clear (detailed spec, well-defined boundaries) → Suggest skipping to `cadence-story` directly
-   - Multiple features mentioned → Note all tracks for breadth tracking
+- **Ambiguity level**: vague (1-2 sentences, unclear scope) → interview; clear (detailed spec) → suggest skipping to `/cadence:story` directly
+- **Potential tracks**: if multiple deliverables or concerns appear, note them for breadth tracking
 
-2. **Identify ambiguity tracks**: Extract independent concerns, deliverables, or questions from the request.
+### Step 2: Round 1 — Framing
 
-### Step 2: Conduct Socratic Interview (2-5 rounds)
+Launch TWO agents in parallel via the Task tool:
 
-Cycle through four perspectives based on what's most needed each round:
+1. **Task → `ontologist`** in `interview` mode with the raw request. Expect: 4-question verdict (essence, root cause, prerequisites, hidden assumptions).
+2. **Task → `breadth-keeper`** with the raw request and empty round history. Expect: initial track list with all tracks OPEN and a recommended starting track.
 
-#### Round 1: Scope & Essence (Ontologist + Socratic Interviewer)
-- **"What IS this, really?"** — Strip away surface details
-- **"What's the core problem you're trying to solve?"** — Find the actual need
-- List all ambiguity tracks found in the request
+Present the user with a concise framing summary synthesized from both agents (don't dump the raw agent output — distill it into 2-3 sentences).
 
-Ask ONE focused question. Wait for the user's answer before continuing.
+### Step 3: Rounds 2-4 — Deepen & Challenge
 
-#### Rounds 2-4: Deepen & Challenge (rotate perspectives)
+Each round does the following:
 
-**Ontologist** (root cause analysis):
-- **"Is this the root cause or a symptom of something deeper?"**
-- **"If we solve this, does the underlying issue remain?"**
-- **"What must exist before this can work?"** (prerequisites)
-- **"What are we assuming that might not be true?"** (hidden assumptions)
+1. **Choose perspective** based on what's most needed:
+   - If ontologist flagged a symptom/assumption issue last round → stay with ontology angle
+   - If breadth-keeper recommends `SHIFT_TO_<track>` → shift focus
+   - If scope is growing large → run simplifier
+   - Otherwise → advance the Socratic thread
+2. **Task → the chosen agent** with round history + the target ambiguity / track:
+   - `socratic-interviewer` for a targeted ambiguity-reduction question
+   - `ontologist` to re-run the 4-question check when framing feels wrong
+   - `breadth-keeper` for a track-shift decision
+   - `simplifier` for a scope-cut proposal
+3. **Ask the user ONE question** drawn from the agent's output.
+4. **Capture the answer** into the round history.
+5. **Task → `breadth-keeper`** at end of round to update track status.
+6. **Task → `seed-closer`** at end of round 3+ to check closure criteria.
 
-**Breadth Keeper** (prevent collapse):
-- After 2 rounds on one track: **"You also mentioned [X] — is that still relevant? What about [Y]?"**
-- Track unresolved tracks explicitly
-- Never let one track dominate more than 3 consecutive rounds
+Rules:
 
-**Simplifier** (challenge scope):
-- **"What's the simplest version of this that could work?"**
-- **"What can we cut without losing the core value?"**
-- **"Are we solving the problem or building a framework?"**
+- Never ask multi-part questions. One concrete question per round.
+- Never let one track consume more than 3 consecutive rounds without a breadth check.
+- Stop the loop immediately if `seed-closer` returns `CLOSE` or `ESCALATE`.
 
-**Socratic Interviewer** (reduce ambiguity):
-- Target the biggest remaining source of ambiguity
-- Build on previous responses
-- Be specific and actionable
+### Step 4: Round 5 (or earlier on closure) — Close
 
-Each round: Ask ONE question. Wait for answer. Then continue.
+If `seed-closer` returned `CLOSE`: proceed to Step 5.
+If `seed-closer` returned `ESCALATE`: tell the user which criteria remain unmet and ask whether to accept the incomplete scope or abort.
 
-#### Round 5 (or earlier if clarity reached): Closure Check (Seed Closer)
+### Step 5: Final Ontology Gate
 
-Before closing, verify:
-- [ ] Scope is explicit and bounded
-- [ ] Non-goals are stated
-- [ ] Expected outputs are defined
-- [ ] Verification expectations are clear
-- [ ] No material blocker remains unresolved
+**Task → `ontologist`** in `gate-only` mode with the consolidated scope. Expect: the 4-question verdict table + `PROCEED | SPLIT | REWRITE | BLOCK`.
 
-If any are missing, ask one more targeted question. Otherwise:
+Gate outcomes:
+- `PROCEED` → Continue to Step 6
+- `SPLIT` → "This appears to be a symptom of [X]. Should we create a root-cause story instead, or intentionally treat the symptom?"
+- `REWRITE` → Rewrite scope with the corrections the ontologist listed, then re-gate
+- `BLOCK` → Missing prerequisites — create prerequisite stories first
 
-**Closure question**: "I have a clear picture: [summarize scope]. Out of scope: [non-goals]. We'll verify success by: [verification]. Should I proceed to create the story, or is anything still unclear?"
-
-### Step 3: Run Ontology Gate
-
-Before finishing, run the mandatory 4-question quality gate:
-
-| # | Question | Check |
-|---|----------|-------|
-| 1 | **Essence**: What IS this, really? | Story describes the core problem |
-| 2 | **Root Cause**: Is this the root cause or a symptom? | Addressing the actual root cause |
-| 3 | **Prerequisites**: What must exist first? | Dependencies identified |
-| 4 | **Hidden Assumptions**: What are we assuming? | Assumptions documented |
-
-**Gate outcomes**:
-- **All pass** → Proceed to story summary
-- **Root cause = symptom** → Tell user: "This appears to be a symptom of [X]. Should we create a story for the root cause instead, or treat the symptom intentionally?"
-- **Missing prerequisites** → "This depends on [X] which doesn't exist yet. Create a prerequisite story first?"
-- **Wrong assumptions** → "This assumes [X] but [Y]. Should we rewrite with corrected assumptions?"
-
-### Step 4: Present Interview Summary
-
-Present the structured result:
+### Step 6: Present Interview Summary
 
 ```markdown
 ## Interview Summary for: [Feature Name]
@@ -100,19 +79,19 @@ Present the structured result:
 [What we're building, in specific terms]
 
 ### Root Problem (vs Symptom)
-[The actual problem — confirmed root cause]
+[The actual problem — confirmed root cause from ontologist]
 
 ### Non-Goals
 [Explicitly out of scope]
 
 ### Hidden Assumptions Surfaced
-[What we assumed and confirmed/rejected]
+[From ontologist + any contrarian pass if run]
 
 ### Simplification Applied
-[What was cut or simplified from original ask]
+[From simplifier, if run]
 
 ### Prerequisites
-[What must exist first, if anything]
+[From ontologist gate]
 
 ### Verification Expectations
 [How success will be judged]
@@ -124,45 +103,27 @@ Then ask: "Ready to create the story? Say `yes` to run `/cadence:story` with thi
 
 ## Mode 2: Gate Only (`--gate-only`)
 
-When `--gate-only` is passed, skip the interview and just run the Ontology Gate on an existing story.
+Single delegation:
 
-### Step 1: Find the Story
-
-1. Determine the story name from `$ARGUMENTS` (after removing `--gate-only`)
-2. If no name given, find the current story from the branch name
-3. Read the story file from `Backlog/Stories/STORY-<name>.md`
-
-### Step 2: Run the 4 Questions
-
-Analyze the story against the Ontology Gate:
-
-1. **Essence**: Does the story describe the core problem, or surface details?
-2. **Root Cause**: Is this addressing a root cause or treating a symptom?
-3. **Prerequisites**: Are all dependencies present or accounted for?
-4. **Hidden Assumptions**: Are implicit assumptions documented or confirmed?
-
-### Step 3: Report
-
-```markdown
-## Ontology Gate: STORY-<name>
-
-| Question | Result | Notes |
-|----------|--------|-------|
-| Essence | ✅ PASS / ❌ FAIL | [what this is really about] |
-| Root Cause | ✅ PASS / ❌ FAIL | [root cause or symptom identified] |
-| Prerequisites | ✅ PASS / ❌ FAIL | [dependencies listed or confirmed] |
-| Hidden Assumptions | ✅ PASS / ❌ FAIL | [assumptions documented] |
-
-**Overall**: PASS / NEEDS REVISION
-```
-
-If any question fails, suggest specific fixes to the story.
+1. Determine the story name from `$ARGUMENTS` (after removing `--gate-only`).
+2. If no name given, find the current story from the branch name (`feature/STORY-<name>`).
+3. Read the story file from `Backlog/Stories/STORY-<name>.md`.
+4. **Task → `ontologist`** in `gate-only` mode with the full story content as target.
+5. Render the ontologist's report table verbatim to the user.
+6. If any question FAILed, surface the specific fixes the ontologist recommended.
 
 ---
 
+## Why this design
+
+The role perspectives are NOT role-played inline. Each round dispatches to a dedicated shared agent via the Task tool so that:
+
+- The agent definitions live in one place (`shared/agents/`, emitted to `packages/claude/agents/`)
+- Changes to role behavior update every skill that uses them
+- Agent outputs are structured (tables, verdicts) and machine-parseable across rounds
+- Context isolation — the interviewer doesn't accumulate the full conversation, just what the orchestrator passes forward
+
 ## Integration with cadence-story
 
-The interview skill is designed to run before `cadence-story`. Two usage patterns:
-
-1. **Explicit**: User runs `/cadence:interview "build a login system"` → gets clarified scope → then runs `/cadence:story` with the result
-2. **Auto-triggered**: `cadence-story` can auto-trigger the interview when the feature description is ambiguous (single sentence, unclear scope). This is controlled by the `--interview` flag on `cadence-story`.
+- **Explicit**: User runs `/cadence:interview "build a login system"` → gets clarified scope → then runs `/cadence:story` with the result
+- **Auto-triggered**: `cadence-story` auto-triggers this skill when the description is ambiguous (via its `--interview` flag)

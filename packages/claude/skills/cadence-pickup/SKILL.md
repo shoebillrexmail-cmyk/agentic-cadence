@@ -195,11 +195,12 @@ Proactively invoke specialist agents at these trigger points:
 | Trigger | Agent | Purpose |
 |---------|-------|---------|
 | Writing API endpoints | `security-reviewer` | Check auth, input validation, rate limiting |
-| Writing database queries | `database-reviewer` | Check SQL injection, query optimization |
+| Writing database queries | `security-reviewer` | Check SQL injection, query optimization (no dedicated database-reviewer in runtime built-ins) |
 | Making architectural decisions | `architect` | Validate design trade-offs |
 | Writing Go code | `go-reviewer` | Check idiomatic patterns, error handling |
 | Writing Python code | `python-reviewer` | Check PEP 8, type hints, Pythonic patterns |
-| Stuck on implementation | `planner` | Re-plan approach with specialist input |
+| Stuck on implementation (1-2 failures) | `planner` | Re-plan approach with specialist input |
+| Genuinely stuck (3+ failures on same issue) | `hacker` | Question constraints, find bypass / reframe options |
 
 **Domain-specific triggers (from ALL discovery sources — not optional):**
 Check BOTH of these sources for development agent triggers:
@@ -207,3 +208,13 @@ Check BOTH of these sources for development agent triggers:
 2. Loaded rules in `~/.claude/rules/` — domain routing files with development trigger tables
 
 Sources are additive. A domain routing file applies even if the story has no specialist context. If a trigger condition is met in EITHER source, invoke the specified domain agent. These are not optional.
+
+### Stuck-Recovery Protocol
+
+After 3+ failures on the same problem with variations of the same approach, STOP and Task → `hacker` with:
+- The stuck description (what was being attempted)
+- Full attempts log (each approach and its failure mode)
+- The story's CONSTRAINTS (from Structured Specification)
+- The story's GOAL
+
+The hacker agent returns ranked alternatives: bypass options, reframe options, and an escalation path if every option has unacceptable cost. NEVER auto-apply hacker output — surface the options to the user and get explicit direction before changing approach. This is the difference between productive redirection and reckless rewrite.

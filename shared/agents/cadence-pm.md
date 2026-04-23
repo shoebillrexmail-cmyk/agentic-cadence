@@ -1,15 +1,3 @@
----
-name: cadence-pm
-description: "Maintain the Obsidian vault's agile artifacts — sprint board, product backlog, stories, specs, roadmap — keeping them consistent with the conventions in shared/core.md."
-model: sonnet
-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Bash
----
 Maintain the Obsidian vault's agile artifacts — sprint board, product backlog, stories, specs, roadmap — keeping them consistent with the conventions in shared/core.md.
 
 <example>

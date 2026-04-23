@@ -541,6 +541,35 @@ If a project-specific learning is encountered in a second project → promote to
 
 ---
 
+## Shared Agents
+
+Cadence ships a set of **shared agents** — methodology roles that apply to every project regardless of domain. They live in `shared/agents/` as runtime-agnostic prompt bodies; `shared/build.mjs` wraps each with Claude subagent frontmatter (→ `packages/claude/agents/`) and consolidates the same bodies into a Pi reference file (→ `packages/pi/.pi/prompts/shared-agents.md`) since Pi has no subagent runtime.
+
+Unlike domain agents, shared agents are **always on** — skills invoke them unconditionally. Projects do not opt in via `CLAUDE.md` or `AGENTS.md`; the wiring lives in the skill files themselves.
+
+### Shared agent roster
+
+| Category | Agents | Invoked by |
+|----------|--------|-----------|
+| Interview | `socratic-interviewer`, `ontologist`, `breadth-keeper`, `simplifier`, `seed-closer` | `cadence-interview`, `cadence-story` Ontology Gate |
+| Design | `seed-architect`, `ontology-analyst`, `contrarian` | `cadence-story` Step 5 (Structured Spec) |
+| Evaluation | `evaluator`, `semantic-evaluator`, `qa-judge`, `advocate`, `judge`, `consensus-reviewer` | `cadence-review` 4-stage pipeline |
+| Methodology | `pattern-auditor`, `integration-validator`, `researcher` | `cadence-review` (augmentation), `cadence-spike` |
+| Stuck-recovery | `hacker` | `cadence-pickup` (3+ failures), `cadence-review` (regression loops) |
+| Project management | `cadence-pm` | Standalone — a write-enabled agent that skills MAY delegate to when they want vault operations executed in an isolated context with the Kanban / story-template enforcement the agent encodes. Skills currently write vault files directly; `cadence-pm` is provided for skills that want delegated vault writes or for user-triggered cleanup passes (e.g., `/cadence:sync`). |
+
+### Shared vs. domain: when to add which
+
+| You are adding… | Put it in… |
+|-----------------|-----------|
+| A methodology role that applies regardless of stack (reviewer, interviewer, evaluator) | `shared/agents/` |
+| A specialist tied to a specific tech stack (OPNet contract-dev, TLA+ spec-writer, Django security-reviewer) | `packages/domain/<name>/agents/` |
+| A role that replaces a shared agent for one stack | **Don't** — domain agents ADD on top of shared; never shadow them |
+
+Domains never need to re-declare shared agents. The `specialists.md` contract only lists what a domain adds over the always-on shared baseline.
+
+---
+
 ## Specialist Convention
 
 Domain plugins register specialist agents through a `specialists.md` convention. See [`shared/specialist-convention.md`](specialist-convention.md) for the full specification.
@@ -570,21 +599,21 @@ Available domains:
 4. Project context file `## Specialists` section
 5. Loaded rules/prompt files with domain routing
 
-### Built-in Agents (always available)
+### Runtime Built-in Agents (NOT shipped by cadence)
 
-| Agent | Purpose |
-|-------|---------|
-| `code-reviewer` | General code quality, patterns, maintainability |
-| `security-reviewer` | Security vulnerabilities, secrets, OWASP top 10 |
-| `tdd-guide` | TDD enforcement |
-| `architect` | System design and architectural decisions |
+These agents are provided by the runtime (Claude Code, Pi, etc.) — cadence references them from skills but does not ship them:
 
-### Language-Specific (auto-detected)
+| Agent | Purpose | Source |
+|-------|---------|--------|
+| `code-reviewer` | General code quality, patterns, maintainability | Runtime built-in |
+| `security-reviewer` | Security vulnerabilities, secrets, OWASP top 10 | Runtime built-in |
+| `tdd-guide` | TDD enforcement | Runtime built-in |
+| `architect` | System design and architectural decisions | Runtime built-in |
+| `planner` | Implementation planning | Runtime built-in |
+| `go-reviewer` | Idiomatic Go review (auto-detected on Go files) | Runtime built-in |
+| `python-reviewer` | PEP 8 / Pythonic review (auto-detected on Py files) | Runtime built-in |
 
-| Detected | Agent |
-|----------|-------|
-| Go files | `go-reviewer` |
-| Python files | `python-reviewer` |
+If a runtime doesn't ship one of these, the skill degrades gracefully — the corresponding review stage simply doesn't contribute findings. Do NOT add these to `shared/agents/` unless cadence is taking over ownership of the implementation.
 
 ---
 
