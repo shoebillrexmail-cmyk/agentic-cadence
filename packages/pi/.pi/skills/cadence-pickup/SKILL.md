@@ -7,6 +7,20 @@ description: Pick up a story from the sprint board — load specialist context, 
 
 Pick up a story and start working. Argument: story name (or empty to show options).
 
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides:
+
+1. Find `AGENTS.md` at repo root
+2. Shell: `node shared/scripts/parse-cadence-config.mjs <path-to-AGENTS.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config
+5. Apply:
+   - `effective["pickup.stuck_threshold"]` — override the 3-failure threshold for triggering `hacker` role
+   - `effective["agents.disable"]` — if `hacker` listed, fall back to manual user escalation
+
+Missing parser / config file → proceed with defaults.
+
 ## Step 1: Find and Select Story
 
 1. Find the vault path from AGENTS.md under `## Obsidian Project`

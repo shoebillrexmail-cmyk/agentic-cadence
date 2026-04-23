@@ -8,9 +8,24 @@ description: Auto-review story changes — detect project type, run code review 
 Run automated code review on the current story's changes.
 
 ## Arguments
-- `--max-cycles N` (default: 3) — Maximum review/fix iterations
+- `--max-cycles N` (default: 3, overridable via Cadence Config `review.max_cycles`) — Maximum review/fix iterations
 - `--skip-fix` — Report findings only, don't attempt fixes
 - `--consensus` — Force Stage 4 (advocate / judge / consensus-reviewer) even when auto-triggers don't fire
+
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides:
+
+1. Find `AGENTS.md` at repo root
+2. Shell: `node shared/scripts/parse-cadence-config.mjs <path-to-AGENTS.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config
+5. Apply:
+   - `effective["review.max_cycles"]` — cap (`--max-cycles` flag wins if passed)
+   - `effective["review.force_consensus"]` — if true, Stage 4 runs every cycle (equivalent to `--consensus`)
+   - `effective["agents.disable"]` — skip listed roles (safety gates — Stage 1 mechanical + security reviewer — cannot be disabled; warn and ignore)
+
+Missing parser / config file → proceed with defaults.
 
 ## Step 1: Context Discovery
 

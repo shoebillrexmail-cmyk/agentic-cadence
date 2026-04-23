@@ -7,6 +7,22 @@ description: Create a new user story with structured spec, testing strategy, and
 
 Create a new agile user story. The argument describes what the story is about.
 
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides:
+
+1. Find `AGENTS.md` at the repo root
+2. Shell out: `node shared/scripts/parse-cadence-config.mjs <path-to-AGENTS.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config to user
+5. Apply:
+   - `effective["story.skip_interview_for_clear_requests"]` — if false, always suggest running interview
+   - `effective["story.require_structured_spec"]` — if false, seed-architect role is optional
+   - `effective["agents.disable"]` — skip role application if listed
+   - `effective["interview.auto_trigger_on_vague"]` — if false, don't auto-trigger interview
+
+Missing parser / config file → proceed with defaults.
+
 ## Step 1: Initial Setup
 
 1. Generate a kebab-case story name from the description (e.g. "auth-login", "payment-checkout")

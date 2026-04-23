@@ -4,6 +4,20 @@ description: Pick up a story from the sprint board — load specialist context, 
 
 Pick up a story and start working. Argument: "$ARGUMENTS" (story name or empty to show options).
 
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides:
+
+1. Find `CLAUDE.md` at the repo root
+2. Run via Bash: `node shared/scripts/parse-cadence-config.mjs <path-to-CLAUDE.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config to the user
+5. Apply to downstream:
+   - `effective["pickup.stuck_threshold"]` — override the 3-failure threshold that triggers `hacker`
+   - `effective["agents.disable"]` — if `hacker` is listed here, the stuck-recovery protocol falls back to manual user escalation (still stops after threshold, just doesn't Task-invoke)
+
+Missing parser / config file → proceed with defaults.
+
 ## Step 1: Find and Select Story
 
 1. Find the project's vault path from the repo's CLAUDE.md under `## Obsidian Project`

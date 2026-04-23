@@ -9,8 +9,23 @@ The argument `"$ARGUMENTS"` describes the feature or includes flags.
 ## Arguments
 
 - `--gate-only` — Skip interview, just run the Ontology Gate on an existing story (delegates to `ontologist` in gate-only mode)
-- `--max-rounds N` (default: 5) — Hard cap on interview rounds
+- `--max-rounds N` (default: 5, overridable via Cadence Config `interview.max_rounds`) — Hard cap on interview rounds
 - (default) — Run full interview on the described feature
+
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides:
+
+1. Find the project context file path (`CLAUDE.md` at repo root)
+2. Run via Bash: `node shared/scripts/parse-cadence-config.mjs <path-to-CLAUDE.md>`
+3. Parse the JSON output: `{ config, warnings, effective }`
+4. If `warnings` is non-empty: display `Cadence config warnings: <list>` to the user
+5. If `config` is non-empty: display `Cadence config applied: <config>`
+6. Use `effective` values downstream:
+   - `effective["interview.max_rounds"]` — hard cap (the `--max-rounds` CLI flag wins if explicitly passed; otherwise `effective` applies)
+   - `effective["agents.disable"]` — when about to Task-invoke an agent, if its name is in this list, skip and log `Skipped disabled agent: <name>` instead
+
+If the parser script or context file is missing, proceed with all defaults — missing config never blocks the skill.
 
 ## Mode 1: Full Interview
 
