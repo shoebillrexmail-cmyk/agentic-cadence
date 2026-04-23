@@ -4,6 +4,7 @@
  * Build script for agentic-cadence monorepo.
  *
  * Assembles agent-specific rules/prompts from shared conventions + package fragments.
+ * Also wraps shared/agents/ prompt bodies with runtime-specific frontmatter.
  *
  * Usage:
  *   node shared/build.mjs          # build all packages
@@ -12,8 +13,15 @@
  *   node shared/build.mjs domain   # validate domain packages only
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
+import { resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -21,6 +29,83 @@ const ROOT = resolve(__dirname, "..");
 
 function load(path) {
   return readFileSync(resolve(ROOT, path), "utf8");
+}
+
+/**
+ * Read all shared agent source files (excluding _template.md and other underscore-prefixed
+ * internal files). Returns array of { name, body, description } where description is the
+ * first line of the body.
+ */
+function readSharedAgents() {
+  const agentsDir = resolve(ROOT, "shared/agents");
+  if (!existsSync(agentsDir)) return [];
+
+  return readdirSync(agentsDir)
+    .filter((f) => f.endsWith(".md") && !f.startsWith("_"))
+    .map((f) => {
+      const body = readFileSync(resolve(agentsDir, f), "utf8").trim();
+      const name = basename(f, ".md");
+
+      // First non-empty line of body = description (for tool-selection prompt)
+      const firstLine = body.split("\n").find((l) => l.trim().length > 0) || name;
+
+      return { name, body, description: firstLine.trim() };
+    });
+}
+
+/**
+ * Default tool allowlist per agent.
+ * Most shared agents are READ-ONLY analysts — only cadence-pm writes vault files.
+ */
+function toolsFor(agentName) {
+  if (agentName === "cadence-pm") {
+    return ["Read", "Write", "Edit", "Glob", "Grep", "Bash"];
+  }
+  return ["Read", "Glob", "Grep"];
+}
+
+/**
+ * Default model per agent. Sonnet for complex reasoning, Haiku for lightweight eliciting.
+ */
+function modelFor(agentName) {
+  const haikuAgents = new Set([
+    "socratic-interviewer",
+    "breadth-keeper",
+    "seed-closer",
+  ]);
+  return haikuAgents.has(agentName) ? "haiku" : "sonnet";
+}
+
+/**
+ * YAML-safe double-quoted scalar. Escapes backslashes and quotes; collapses
+ * newlines so the description stays a single line. Any first-line text
+ * containing `:`, `|`, `>`, leading indicators, or quotes becomes safe here.
+ */
+function yamlQuote(s) {
+  const collapsed = String(s).replace(/\r?\n/g, " ").trim();
+  const escaped = collapsed.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"${escaped}"`;
+}
+
+/**
+ * Wrap a shared agent body with Claude subagent YAML frontmatter.
+ */
+function wrapClaudeAgent(agent) {
+  const tools = toolsFor(agent.name);
+  const model = modelFor(agent.name);
+
+  const frontmatter = [
+    "---",
+    `name: ${agent.name}`,
+    `description: ${yamlQuote(agent.description)}`,
+    `model: ${model}`,
+    "tools:",
+    ...tools.map((t) => `  - ${t}`),
+    "---",
+    "",
+  ].join("\n");
+
+  return frontmatter + agent.body + "\n";
 }
 
 function buildClaude() {
@@ -67,7 +152,7 @@ See \`git-workflow.md\` for full branching strategy, worktree usage, and release
 | Hotfix | Branch from \`master\`, PR → \`master\` + \`develop\` |
 `;
 
-  // Write outputs
+  // Write rule outputs
   const rulesDir = resolve(ROOT, "packages/claude/rules");
   mkdirSync(rulesDir, { recursive: true });
 
@@ -82,6 +167,61 @@ See \`git-workflow.md\` for full branching strategy, worktree usage, and release
 
   console.log("   ✅ packages/claude/rules/obsidian-workflow.md");
   console.log("   ✅ packages/claude/rules/git-workflow.md");
+
+  // Wrap shared/agents/ bodies with Claude subagent frontmatter → packages/claude/agents/
+  //
+  // IMPORTANT: this directory is GENERATED. `rmSync` below wipes it clean every
+  // build so stale shared agents don't linger. Do NOT hand-author files here —
+  // any hand-authored .md will be destroyed on the next build. Author in
+  // shared/agents/<name>.md and run `npm run build`.
+  const agentsOutDir = resolve(ROOT, "packages/claude/agents");
+
+  if (existsSync(agentsOutDir)) {
+    rmSync(agentsOutDir, { recursive: true, force: true });
+  }
+  mkdirSync(agentsOutDir, { recursive: true });
+
+  const agents = readSharedAgents();
+  for (const agent of agents) {
+    const wrapped = wrapClaudeAgent(agent);
+    writeFileSync(resolve(agentsOutDir, `${agent.name}.md`), wrapped);
+    console.log(`   ✅ packages/claude/agents/${agent.name}.md`);
+  }
+
+  console.log(`   → ${agents.length} shared agents emitted`);
+}
+
+/**
+ * For Pi, inline the shared agent bodies into a single reference prompt.
+ * Pi has no subagent runtime — skills that "invoke" an agent quote its body inline,
+ * or reference this consolidated file for the full role definition.
+ */
+function buildPiAgentReference(agents) {
+  const header = `# Shared Agent Role Definitions
+
+This file is auto-generated from \`shared/agents/*.md\`.
+
+Pi has no subagent runtime, so cadence skills that reference these agents role-play them inline.
+This file is the single source of truth for those role prompts — skills may inline the body
+or reference this file by agent name.
+
+DO NOT EDIT DIRECTLY. Edit \`shared/agents/<name>.md\` and run \`npm run build:pi\`.
+
+---
+`;
+
+  const bodies = agents
+    .map(
+      (a) =>
+        `\n## Agent: ${a.name}\n\n_${a.description}_\n\n${a.body
+          .split("\n")
+          .slice(1) // drop first line (it's the description we already rendered above)
+          .join("\n")
+          .trim()}\n`
+    )
+    .join("\n---\n");
+
+  return header + bodies;
 }
 
 function buildPi() {
@@ -105,6 +245,19 @@ ${core}
   );
 
   console.log("   ✅ packages/pi/.pi/prompts/agile-workflow.md");
+
+  // Consolidated shared agent reference for Pi skills to inline from
+  const agents = readSharedAgents();
+  if (agents.length > 0) {
+    const reference = buildPiAgentReference(agents);
+    writeFileSync(
+      resolve(promptsDir, "shared-agents.md"),
+      reference.trim() + "\n"
+    );
+    console.log(
+      `   ✅ packages/pi/.pi/prompts/shared-agents.md (${agents.length} roles)`
+    );
+  }
 }
 
 function buildDomain() {
