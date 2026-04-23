@@ -1,2 +1,8 @@
 # Dependencies
 node_modules/
+
+# Local Claude Code config (not shared)
+CLAUDE.md
+
+# Research scratchpad (not shared)
+shared/research/
