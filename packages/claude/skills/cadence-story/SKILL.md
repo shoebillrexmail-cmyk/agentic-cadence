@@ -4,6 +4,22 @@ description: Create a new user story with structured spec, testing strategy, and
 
 Create a new user story. The argument "$ARGUMENTS" describes what the story is about.
 
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides:
+
+1. Find `CLAUDE.md` at the repo root
+2. Run via Bash: `node shared/scripts/parse-cadence-config.mjs <path-to-CLAUDE.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config to the user (see the Cadence Config section in shared/core.md)
+5. Apply to downstream steps:
+   - `effective["story.skip_interview_for_clear_requests"]` — if false, always suggest running `/cadence:interview` even for clear specs
+   - `effective["story.require_structured_spec"]` — if false, `seed-architect` in Step 5 becomes optional (skip for trivial UI tweaks, still run for state-machine stories)
+   - `effective["agents.disable"]` — when about to Task-invoke any agent (seed-architect, contrarian, ontology-analyst, ontologist), if its name is in this list, skip with a log
+   - `effective["interview.auto_trigger_on_vague"]` — if false, don't auto-trigger `/cadence:interview` when the request is vague; just proceed with what the user gave
+
+Missing parser or context file → proceed with all defaults.
+
 ## Step 1: Initial Setup
 
 1. Generate a kebab-case story name from the description (e.g. "auth-login", "payment-checkout")

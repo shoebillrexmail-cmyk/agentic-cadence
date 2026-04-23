@@ -582,6 +582,65 @@ Domains never need to re-declare shared agents. The `specialists.md` contract on
 
 ---
 
+## Cadence Config (per-project overrides)
+
+Projects can tune cadence skill defaults via an optional `## Cadence Config` block in the project's context file (`CLAUDE.md` for Claude, `AGENTS.md` for Pi). Absence of the block means "use all defaults." Malformed entries become warnings — they never block skill execution.
+
+### Format
+
+```markdown
+## Cadence Config
+interview.max_rounds: 3
+review.force_consensus: true
+review.max_cycles: 5
+agents.disable: [contrarian, simplifier]
+# comments allowed
+```
+
+Parser: `shared/scripts/parse-cadence-config.mjs` — shared between Claude and Pi. Skills invoke it via `node shared/scripts/parse-cadence-config.mjs <path-to-context-file>` and parse the JSON output.
+
+### Supported keys
+
+| Key | Type | Default | Applied by | Effect |
+|-----|------|---------|-----------|--------|
+| `interview.max_rounds` | int | 5 | `cadence-interview` | Hard cap on interview rounds |
+| `interview.auto_trigger_on_vague` | bool | true | `cadence-story` | If false, don't auto-trigger interview on vague requests |
+| `review.force_consensus` | bool | false | `cadence-review` | If true, Stage 4 runs every cycle regardless of other triggers |
+| `review.max_cycles` | int | 3 | `cadence-review` | Max review/fix iterations |
+| `story.skip_interview_for_clear_requests` | bool | true | `cadence-story` | If false, always run interview even for clear specs |
+| `story.require_structured_spec` | bool | true | `cadence-story` | If false, `seed-architect` becomes optional |
+| `agents.disable` | string[] | [] | All skills | Task invocations of listed agents are skipped with a warn log |
+| `pickup.stuck_threshold` | int | 3 | `cadence-pickup` | Failures before `hacker` is invoked |
+
+### NOT configurable (safety-critical)
+
+These are intentionally non-configurable:
+- Ontology Gate in `cadence-story` Step 8 — always runs
+- Stage 1 mechanical checks in `cadence-review` — always run
+- Security reviewer invocation in `cadence-review` Stage 3 — always runs
+- Worktree rule — always enforced
+
+Only methodology tuning is overridable. Safety gates stay at the baseline.
+
+### Skill invocation pattern
+
+Every cadence skill (`cadence-interview`, `cadence-story`, `cadence-review`, `cadence-pickup`) includes a **Step 0: Load Cadence Config** that:
+
+1. Locates the project context file (`CLAUDE.md` / `AGENTS.md`) — same source as `## Obsidian Project`
+2. Runs `node shared/scripts/parse-cadence-config.mjs <path>` via Bash
+3. Parses the JSON: `{ config, warnings, effective }`
+4. Logs any warnings to the user: `Cadence config warnings: …`
+5. If `config` is non-empty, logs: `Cadence config applied: { …user-supplied keys… }`
+6. Uses `effective` for downstream decisions — skip Task invocations for agents in `effective["agents.disable"]`, cap interview rounds at `effective["interview.max_rounds"]`, etc.
+
+### Effective config vs user config
+- **`config`** = only the keys the user actually supplied (for auditability)
+- **`effective`** = DEFAULTS ⊕ config — what skills actually use
+
+Skills log `config` (short and specific) and use `effective` (complete).
+
+---
+
 ## Specialist Convention
 
 Domain plugins register specialist agents through a `specialists.md` convention. See [`shared/specialist-convention.md`](specialist-convention.md) for the full specification.

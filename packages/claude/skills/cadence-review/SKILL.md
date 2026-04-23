@@ -6,9 +6,26 @@ Run automated code review on the current story's changes. Detects what changed a
 
 ## Arguments
 
-- `--max-cycles N` (default: 3) — Maximum review/fix iterations before stopping and reporting remaining issues to user
+- `--max-cycles N` (default: 3, overridable via Cadence Config `review.max_cycles`) — Maximum review/fix iterations before stopping and reporting remaining issues to user
 - `--skip-fix` — Run review only, report findings, do not attempt fixes (useful for dry-run review)
 - `--consensus` — Force Stage 4 (advocate / judge / consensus-reviewer) even when auto-triggers don't fire. Use for high-stakes stories.
+
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides:
+
+1. Find `CLAUDE.md` at the repo root
+2. Run via Bash: `node shared/scripts/parse-cadence-config.mjs <path-to-CLAUDE.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config to the user
+5. Apply to downstream:
+   - `effective["review.max_cycles"]` — cap on review/fix iterations (`--max-cycles` flag wins if passed)
+   - `effective["review.force_consensus"]` — if true, treat it the same as `--consensus` (Stage 4 runs every cycle)
+   - `effective["agents.disable"]` — skip Task invocations for listed agents (applies to any agent in the pipeline: semantic-evaluator, qa-judge, advocate, judge, consensus-reviewer, pattern-auditor, integration-validator, hacker). Required agents like Stage 1 mechanical checks are NOT configurable.
+
+Safety note: security reviewer and mechanical Stage 1 checks cannot be disabled via config. If `agents.disable` contains them, warn and ignore.
+
+Missing parser / config file → proceed with defaults.
 
 ## Step 1: Context Discovery
 

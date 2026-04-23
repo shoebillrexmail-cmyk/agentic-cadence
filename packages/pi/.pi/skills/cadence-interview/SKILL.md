@@ -18,8 +18,22 @@ Roles used:
 
 ## Arguments
 - `--gate-only` — Skip interview, run Ontology Gate on existing story only
-- `--max-rounds N` (default: 5) — Maximum interview rounds
+- `--max-rounds N` (default: 5, overridable via Cadence Config `interview.max_rounds`) — Maximum interview rounds
 - (default) — Run full interview
+
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides from `AGENTS.md`:
+
+1. Find `AGENTS.md` at the repo root
+2. Shell out: `node shared/scripts/parse-cadence-config.mjs <path-to-AGENTS.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config to user
+5. Apply:
+   - `effective["interview.max_rounds"]` — cap (the `--max-rounds` CLI flag wins if explicitly passed)
+   - `effective["agents.disable"]` — when applying a role, if its name is in this list, skip with `Skipped disabled role: <name>` log
+
+Missing parser / config file → proceed with defaults.
 
 ## Mode 1: Full Interview
 
