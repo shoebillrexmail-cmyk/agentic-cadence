@@ -1,5 +1,5 @@
 ---
-name: agile-spike
+name: cadence-spike
 description: Create and run a time-boxed research spike. Use when the user needs to investigate something, explore options, or do research before implementation.
 ---
 

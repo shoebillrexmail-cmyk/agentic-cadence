@@ -541,6 +541,96 @@ If a project-specific learning is encountered in a second project → promote to
 
 ---
 
+## Shared Agents
+
+Cadence ships a set of **shared agents** — methodology roles that apply to every project regardless of domain. They live in `shared/agents/` as runtime-agnostic prompt bodies; `shared/build.mjs` wraps each with Claude subagent frontmatter (→ `packages/claude/agents/`) and consolidates the same bodies into a Pi reference file (→ `packages/pi/.pi/prompts/shared-agents.md`) since Pi has no subagent runtime.
+
+Unlike domain agents, shared agents are **always on** — skills invoke them unconditionally. Projects do not opt in via `CLAUDE.md` or `AGENTS.md`; the wiring lives in the skill files themselves.
+
+### Shared agent roster
+
+| Category | Agents | Invoked by |
+|----------|--------|-----------|
+| Interview | `socratic-interviewer`, `ontologist`, `breadth-keeper`, `simplifier`, `seed-closer` | `cadence-interview`, `cadence-story` Ontology Gate |
+| Design | `seed-architect`, `ontology-analyst`, `contrarian` | `cadence-story` Step 5 (Structured Spec) |
+| Evaluation | `evaluator`, `semantic-evaluator`, `qa-judge`, `advocate`, `judge`, `consensus-reviewer` | `cadence-review` 4-stage pipeline |
+| Methodology | `pattern-auditor`, `integration-validator`, `researcher` | `cadence-review` (augmentation), `cadence-spike` |
+| Stuck-recovery | `hacker` | `cadence-pickup` (3+ failures), `cadence-review` (regression loops) |
+| Project management | `cadence-pm` | Standalone — a write-enabled agent that skills MAY delegate to when they want vault operations executed in an isolated context with the Kanban / story-template enforcement the agent encodes. Skills currently write vault files directly; `cadence-pm` is provided for skills that want delegated vault writes or for user-triggered cleanup passes (e.g., `/cadence:sync`). |
+
+### Shared vs. domain: when to add which
+
+| You are adding… | Put it in… |
+|-----------------|-----------|
+| A methodology role that applies regardless of stack (reviewer, interviewer, evaluator) | `shared/agents/` |
+| A specialist tied to a specific tech stack (OPNet contract-dev, TLA+ spec-writer, Django security-reviewer) | `packages/domain/<name>/agents/` |
+| A role that replaces a shared agent for one stack | **Don't** — domain agents ADD on top of shared; never shadow them |
+
+Domains never need to re-declare shared agents. The `specialists.md` contract only lists what a domain adds over the always-on shared baseline.
+
+---
+
+## Cadence Config (per-project overrides)
+
+Projects can tune cadence skill defaults via an optional `## Cadence Config` block in the project's context file (`CLAUDE.md` for Claude, `AGENTS.md` for Pi). Absence of the block means "use all defaults." Malformed entries become warnings — they never block skill execution.
+
+### Format
+
+```markdown
+## Cadence Config
+interview.max_rounds: 3
+review.force_consensus: true
+review.max_cycles: 5
+agents.disable: [contrarian, simplifier]
+# comments allowed
+```
+
+Parser: `shared/scripts/parse-cadence-config.mjs` — canonical source lives here; the build script (`shared/build.mjs`) copies it into each skill directory that needs it. Skills then invoke the local copy so the path resolves regardless of the user's cwd:
+- **Claude Code**: `node "${CLAUDE_SKILL_DIR}/parse-cadence-config.mjs" <path-to-context-file>` — `${CLAUDE_SKILL_DIR}` is an env var exposed by Claude Code.
+- **Pi**: `node {baseDir}/parse-cadence-config.mjs <path-to-context-file>` — `{baseDir}` is a text placeholder Pi substitutes to the skill's directory at invocation time.
+
+### Supported keys
+
+| Key | Type | Default | Applied by | Effect |
+|-----|------|---------|-----------|--------|
+| `interview.max_rounds` | int | 5 | `cadence-interview` | Hard cap on interview rounds |
+| `interview.auto_trigger_on_vague` | bool | true | `cadence-story` | If false, don't auto-trigger interview on vague requests |
+| `review.force_consensus` | bool | false | `cadence-review` | If true, Stage 4 runs every cycle regardless of other triggers |
+| `review.max_cycles` | int | 3 | `cadence-review` | Max review/fix iterations |
+| `story.skip_interview_for_clear_requests` | bool | true | `cadence-story` | If false, always run interview even for clear specs |
+| `story.require_structured_spec` | bool | true | `cadence-story` | If false, `seed-architect` becomes optional |
+| `agents.disable` | string[] | [] | All skills | Task invocations of listed agents are skipped with a warn log |
+| `pickup.stuck_threshold` | int | 3 | `cadence-pickup` | Failures before `hacker` is invoked |
+
+### NOT configurable (safety-critical)
+
+These are intentionally non-configurable:
+- Ontology Gate in `cadence-story` Step 8 — always runs
+- Stage 1 mechanical checks in `cadence-review` — always run
+- Security reviewer invocation in `cadence-review` Stage 3 — always runs
+- Worktree rule — always enforced
+
+Only methodology tuning is overridable. Safety gates stay at the baseline.
+
+### Skill invocation pattern
+
+Every cadence skill (`cadence-interview`, `cadence-story`, `cadence-review`, `cadence-pickup`) includes a **Step 0: Load Cadence Config** that:
+
+1. Locates the project context file (`CLAUDE.md` / `AGENTS.md`) — same source as `## Obsidian Project`
+2. Runs the parser via Bash — `node "${CLAUDE_SKILL_DIR}/parse-cadence-config.mjs" <path>` on Claude Code or `node {baseDir}/parse-cadence-config.mjs <path>` on Pi
+3. Parses the JSON: `{ config, warnings, effective }`
+4. Logs any warnings to the user: `Cadence config warnings: …`
+5. If `config` is non-empty, logs: `Cadence config applied: { …user-supplied keys… }`
+6. Uses `effective` for downstream decisions — skip Task invocations for agents in `effective["agents.disable"]`, cap interview rounds at `effective["interview.max_rounds"]`, etc.
+
+### Effective config vs user config
+- **`config`** = only the keys the user actually supplied (for auditability)
+- **`effective`** = DEFAULTS ⊕ config — what skills actually use
+
+Skills log `config` (short and specific) and use `effective` (complete).
+
+---
+
 ## Specialist Convention
 
 Domain plugins register specialist agents through a `specialists.md` convention. See [`shared/specialist-convention.md`](specialist-convention.md) for the full specification.
@@ -570,21 +660,21 @@ Available domains:
 4. Project context file `## Specialists` section
 5. Loaded rules/prompt files with domain routing
 
-### Built-in Agents (always available)
+### Runtime Built-in Agents (NOT shipped by cadence)
 
-| Agent | Purpose |
-|-------|---------|
-| `code-reviewer` | General code quality, patterns, maintainability |
-| `security-reviewer` | Security vulnerabilities, secrets, OWASP top 10 |
-| `tdd-guide` | TDD enforcement |
-| `architect` | System design and architectural decisions |
+These agents are provided by the runtime (Claude Code, Pi, etc.) — cadence references them from skills but does not ship them:
 
-### Language-Specific (auto-detected)
+| Agent | Purpose | Source |
+|-------|---------|--------|
+| `code-reviewer` | General code quality, patterns, maintainability | Runtime built-in |
+| `security-reviewer` | Security vulnerabilities, secrets, OWASP top 10 | Runtime built-in |
+| `tdd-guide` | TDD enforcement | Runtime built-in |
+| `architect` | System design and architectural decisions | Runtime built-in |
+| `planner` | Implementation planning | Runtime built-in |
+| `go-reviewer` | Idiomatic Go review (auto-detected on Go files) | Runtime built-in |
+| `python-reviewer` | PEP 8 / Pythonic review (auto-detected on Py files) | Runtime built-in |
 
-| Detected | Agent |
-|----------|-------|
-| Go files | `go-reviewer` |
-| Python files | `python-reviewer` |
+If a runtime doesn't ship one of these, the skill degrades gracefully — the corresponding review stage simply doesn't contribute findings. Do NOT add these to `shared/agents/` unless cadence is taking over ownership of the implementation.
 
 ---
 

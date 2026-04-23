@@ -26,6 +26,7 @@
     "build": "node shared/build.mjs",
     "build:claude": "node shared/build.mjs claude",
     "build:pi": "node shared/build.mjs pi",
-    "build:domain": "node shared/build.mjs domain"
+    "build:domain": "node shared/build.mjs domain",
+    "test": "node --test shared/scripts/*.test.mjs"
   }
 }

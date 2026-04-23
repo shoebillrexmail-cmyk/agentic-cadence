@@ -1,11 +1,27 @@
 ---
-name: agile-story
+name: cadence-story
 description: Create a new user story with structured spec, testing strategy, and specialist consultation. Use when the user describes a new feature, request, or piece of work.
 ---
 
 # Create User Story
 
 Create a new agile user story. The argument describes what the story is about.
+
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides:
+
+1. Find `AGENTS.md` at the repo root
+2. Shell out: `node {baseDir}/parse-cadence-config.mjs <path-to-AGENTS.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config to user
+5. Apply:
+   - `effective["story.skip_interview_for_clear_requests"]` — if false, always suggest running interview
+   - `effective["story.require_structured_spec"]` — if false, seed-architect role is optional
+   - `effective["agents.disable"]` — skip role application if listed
+   - `effective["interview.auto_trigger_on_vague"]` — if false, don't auto-trigger interview
+
+Missing parser / config file → proceed with defaults.
 
 ## Step 1: Initial Setup
 
@@ -57,7 +73,17 @@ Capture all specialist feedback.
 
 Plus domain-specific test types from specialist configs.
 
-## Step 5: Create the Story File
+## Step 5: Generate Structured Spec Fields
+
+Before writing the story, apply three shared agent roles (prompts in `.pi/prompts/shared-agents.md`):
+
+1. **`seed-architect`** — produce the structured fields: GOAL, CONSTRAINTS, NON_GOALS, EVALUATION_PRINCIPLES (weights sum to 1.0), EXIT_CONDITIONS (mechanical), ONTOLOGY.
+2. **(Optional) `contrarian`** — invert assumptions, report any HIGH-plausibility inversions. Surface to user before proceeding.
+3. **(Optional, state-machine / multi-entity stories) `ontology-analyst`** — expand the ONTOLOGY stub into a full domain model.
+
+Embed the seed-architect output into the story's `## Structured Specification` section. Embed ontology-analyst output (if generated) into `## Domain Model`.
+
+## Step 6: Create the Story File
 
 Create `Backlog/Stories/STORY-<name>.md`:
 
@@ -84,6 +110,21 @@ As a **[role]**, I want **[capability]**, so that **[benefit]**.
 **Domain rules**: [...]
 **Known pitfalls**: [...]
 
+## Structured Specification
+(from `seed-architect` — Step 5)
+**GOAL**: [one sentence]
+**CONSTRAINTS**: [list]
+**NON_GOALS**: [list]
+**EVALUATION_PRINCIPLES**: [name:description:weight, sum to 1.0]
+**EXIT_CONDITIONS**: [name:mechanical criterion]
+**ONTOLOGY**: [entity:attributes:relations]
+
+## Domain Model
+(optional — from `ontology-analyst` for state-machine / multi-entity stories)
+
+## Assumption Stress Test
+(optional — from `contrarian`)
+
 ## Acceptance Criteria
 - [ ] Given [context], when [action], then [outcome]
 
@@ -107,7 +148,7 @@ As a **[role]**, I want **[capability]**, so that **[benefit]**.
 [Specialist feedback summary, architectural decisions]
 ```
 
-## Step 6: Create the Spec
+## Step 7: Create the Spec
 
 Create `Specs/Features/SPEC-<name>.md` with:
 - Testing Strategy populated
@@ -117,9 +158,9 @@ Create `Specs/Features/SPEC-<name>.md` with:
 
 If the story involves technical architecture, also create `Specs/Technical/SPEC-<name>.md`.
 
-## Step 7: Ontology Gate (MANDATORY)
+## Step 8: Ontology Gate (MANDATORY)
 
-Run the 4 fundamental questions before finalizing:
+Apply the `ontologist` role (prompt in `.pi/prompts/shared-agents.md`) in gate-only mode with the full story content. Render the 4-question verdict table and act on the binding decision:
 
 | # | Question | Check |
 |---|----------|-------|
@@ -128,23 +169,24 @@ Run the 4 fundamental questions before finalizing:
 | 3 | **Prerequisites**: What must exist first? | Dependencies identified |
 | 4 | **Hidden Assumptions**: What are we assuming? | Assumptions documented |
 
-**Gate outcomes:**
-- All pass → proceed to Step 8
-- Root cause = symptom → Tell user, suggest root-cause story
-- Missing prerequisites → Add prerequisite stories
-- Wrong assumptions → Rewrite with corrected assumptions
+Verdict actions:
+- `PROCEED` → continue to Step 9
+- `SPLIT` → Tell user, suggest root-cause story instead
+- `REWRITE` → apply corrections to scope, **jump back to Step 5 and re-run `seed-architect`** with corrected scope before re-gating (structured fields depend on scope)
+- `BLOCK` → add prerequisite stories first, re-gate
 
-## Step 8: Quality Gate
+## Step 9: Quality Gate
 
 Validate:
 - [ ] User story has clear role, capability, benefit
 - [ ] At least 3 acceptance criteria with Given/When/Then
 - [ ] Testing strategy has at least unit tests defined
 - [ ] Specialist context documented
+- [ ] Structured Specification present (from Step 5 / seed-architect)
 - [ ] Tasks include TDD workflow steps
-- [ ] Ontology Gate passed (Step 7)
+- [ ] Ontology Gate passed (Step 8 — verdict `PROCEED`)
 
-## Step 9: Add to Backlog
+## Step 10: Add to Backlog
 
 1. Add story to `Backlog/Product-Backlog.md` under "Needs Refinement"
 2. Report summary to user

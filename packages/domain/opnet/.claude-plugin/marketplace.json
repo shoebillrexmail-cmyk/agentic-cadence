@@ -1,0 +1,17 @@
+{
+  "name": "cadence-opnet",
+  "owner": {
+    "name": "koena"
+  },
+  "metadata": {
+    "description": "OPNet Bitcoin L1 domain plugin for Cadence — specialist agents, knowledge, and skills"
+  },
+  "plugins": [
+    {
+      "name": "cadence-opnet",
+      "source": "./",
+      "description": "17 OPNet specialist agents, 11 knowledge slices, 3 skills (pua, audit-from-bugs, verify-spec), TLA+ verification tooling",
+      "version": "1.0.0"
+    }
+  ]
+}

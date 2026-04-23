@@ -4,6 +4,22 @@ description: Create a new user story with structured spec, testing strategy, and
 
 Create a new user story. The argument "$ARGUMENTS" describes what the story is about.
 
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides:
+
+1. Find `CLAUDE.md` at the repo root
+2. Run via Bash: `node "${CLAUDE_SKILL_DIR}/parse-cadence-config.mjs" <path-to-CLAUDE.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config to the user (see the Cadence Config section in shared/core.md)
+5. Apply to downstream steps:
+   - `effective["story.skip_interview_for_clear_requests"]` — if false, always suggest running `/cadence:interview` even for clear specs
+   - `effective["story.require_structured_spec"]` — if false, `seed-architect` in Step 5 becomes optional (skip for trivial UI tweaks, still run for state-machine stories)
+   - `effective["agents.disable"]` — when about to Task-invoke any agent (seed-architect, contrarian, ontology-analyst, ontologist), if its name is in this list, skip with a log
+   - `effective["interview.auto_trigger_on_vague"]` — if false, don't auto-trigger `/cadence:interview` when the request is vague; just proceed with what the user gave
+
+Missing parser or context file → proceed with all defaults.
+
 ## Step 1: Initial Setup
 
 1. Generate a kebab-case story name from the description (e.g. "auth-login", "payment-checkout")
@@ -78,7 +94,19 @@ If domain specialist configs define additional test types (in their Test Types s
 
 Generate concrete test requirements for each applicable type.
 
-## Step 5: Create the Story File
+## Step 5: Generate Structured Spec Fields
+
+Before writing the story file, delegate to shared agents to produce the machine-verifiable spec fields. All three Task calls happen in parallel where inputs don't depend on each other.
+
+1. **Task → `seed-architect`** with: clarified scope from Steps 3-4, any non-goals, interview notes if `/cadence:interview` ran first, and project context from Step 2. Expect a structured block with **GOAL**, **CONSTRAINTS**, **NON_GOALS**, **EVALUATION_PRINCIPLES** (weights sum to 1.0), **EXIT_CONDITIONS** (mechanically checkable), and **ONTOLOGY** (entities + relations).
+
+2. **(Optional) Task → `contrarian`** with the clarified scope and the stated assumptions surfaced so far. Expect an inversion table with plausibility scores. If any HIGH-plausibility inversion appears → surface to the user before proceeding. LOW/MEDIUM inversions get documented in the story's `## Assumption Stress Test` section.
+
+3. **(Optional, for state-machine or multi-entity stories) Task → `ontology-analyst`** with the stub ONTOLOGY from seed-architect. Expect a full domain model (entities, relationships, state transitions, cross-entity invariants). Skip for trivial UI-tweak or config-only stories.
+
+The seed-architect output is embedded verbatim into the story's `## Structured Specification` section. The ontology-analyst output (if generated) is embedded into the story's `## Domain Model` section.
+
+## Step 6: Create the Story File
 
 Create `Backlog/Stories/STORY-<name>.md` using this format:
 
@@ -117,6 +145,32 @@ so that **[benefit]**.
 **Known pitfalls**:
 - [pitfall 1]
 - [pitfall 2]
+
+## Structured Specification
+(populated verbatim from the `seed-architect` agent output in Step 5)
+
+**GOAL**: [one observable sentence]
+
+**CONSTRAINTS**:
+- [hard limit]
+
+**NON_GOALS**:
+- [out of scope]
+
+**EVALUATION_PRINCIPLES** (weights sum to 1.0):
+- [name]:[description]:[weight]
+
+**EXIT_CONDITIONS**:
+- [name]:[mechanically checkable criterion]
+
+**ONTOLOGY**:
+- [entity]:[attributes]:[relations]
+
+## Domain Model
+(optional — populated from `ontology-analyst` output for state-machine or multi-entity stories; omit otherwise)
+
+## Assumption Stress Test
+(optional — populated from `contrarian` output; list any HIGH-plausibility inversions the user accepted, plus notable MEDIUM inversions)
 
 ## Acceptance Criteria
 - [ ] Given [context], when [action], then [outcome]
@@ -158,7 +212,7 @@ so that **[benefit]**.
 [Specialist feedback summary, architectural decisions, constraints]
 ```
 
-## Step 6: Create the Spec
+## Step 7: Create the Spec
 
 **Always** create a feature spec at `Specs/Features/SPEC-<name>.md`:
 
@@ -170,9 +224,11 @@ Use the feature spec template but ensure these sections are filled:
 
 **If the story involves technical architecture** (new services, data models, APIs), also create `Specs/Technical/SPEC-<name>.md` with the technical spec template.
 
-## Step 7: Ontology Gate (MANDATORY)
+## Step 8: Ontology Gate (MANDATORY)
 
-Before finalizing, run the 4 fundamental questions as a quality gate:
+**Task → `ontologist`** in `gate-only` mode with the full story file content as the target. The agent returns the 4-question verdict table plus a binding decision: `PROCEED | SPLIT | REWRITE | BLOCK`.
+
+The 4 fundamental questions (handled by the ontologist agent):
 
 | # | Question | Check |
 |---|----------|-------|
@@ -181,15 +237,15 @@ Before finalizing, run the 4 fundamental questions as a quality gate:
 | 3 | **Prerequisites**: "What must exist first?" | Are all dependencies present or captured as separate stories? |
 | 4 | **Hidden Assumptions**: "What are we assuming?" | Are implicit assumptions documented in the story? |
 
-**Gate outcomes:**
-- **All 4 pass** → Story is well-formed, proceed to Step 8
-- **Root cause = symptom** → Tell user: "This story appears to treat a symptom of [deeper issue]. Should we create a root-cause story instead? Or treat the symptom intentionally?"
-- **Missing prerequisites** → Add prerequisite tasks to the story or create separate prerequisite stories
-- **Wrong assumptions** → Rewrite the story approach with corrected assumptions
+Act on the ontologist's verdict:
+- `PROCEED` → Story is well-formed, continue to Step 9
+- `SPLIT` → Tell user: "This story appears to treat a symptom of [deeper issue]. Should we create a root-cause story instead? Or treat the symptom intentionally?"
+- `REWRITE` → Apply the ontologist's listed corrections to the clarified scope, **then jump back to Step 5 and re-run `seed-architect`** with the corrected scope (the structured fields depend on scope). Re-gate after seed-architect emits the new block. Prose-only edits to the story without re-running seed-architect risk leaving stale GOAL/CONSTRAINTS.
+- `BLOCK` → Missing prerequisites — create prerequisite stories first, then re-gate (prerequisites rarely require a seed-architect re-run, only if they change CONSTRAINTS)
 
 Do NOT skip this gate. It prevents stories that solve the wrong problem.
 
-## Step 8: Quality Gate
+## Step 9: Quality Gate
 
 Validate the story against completeness and testability checks:
 
@@ -200,7 +256,8 @@ Validate the story against completeness and testability checks:
 - [ ] Each acceptance criterion has a corresponding test requirement
 - [ ] Specialist context is documented (project type, agents, pitfalls)
 - [ ] Tasks include TDD workflow steps (write tests → implement → verify)
-- [ ] Ontology Gate passed (Step 7)
+- [ ] Ontology Gate passed (Step 8 — verdict `PROCEED` from `ontologist`)
+- [ ] Structured Specification present (from `seed-architect` in Step 5)
 
 **Testability:**
 - [ ] Every acceptance criterion is automatable (not subjective)
@@ -214,7 +271,7 @@ Validate the story against completeness and testability checks:
 
 If any check fails, fix it before proceeding.
 
-## Step 9: Add to Backlog and Next Steps
+## Step 10: Add to Backlog and Next Steps
 
 1. Add the story to `Backlog/Product-Backlog.md` under "Needs Refinement"
 2. Report to user:

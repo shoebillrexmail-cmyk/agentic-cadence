@@ -1,5 +1,5 @@
 ---
-name: agile-sync
+name: cadence-sync
 description: Sync vault structure — ensure existing project matches current cadence conventions. Use when the vault structure might be outdated or incomplete.
 ---
 
@@ -10,7 +10,7 @@ Sync the vault structure for an existing project to match the latest conventions
 ## Steps
 
 1. Find vault path from AGENTS.md under `## Obsidian Project`
-2. If not found, tell user to run `/skill:agile-init` first
+2. If not found, tell user to run `/skill:cadence-init` first
 
 ### Scan the vault against expected structure:
 

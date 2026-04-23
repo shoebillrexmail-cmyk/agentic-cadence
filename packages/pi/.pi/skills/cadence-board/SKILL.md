@@ -1,5 +1,5 @@
 ---
-name: agile-board
+name: cadence-board
 description: Show the current sprint board and backlog status. Use when the user asks about board status, what's in progress, or sprint overview.
 ---
 

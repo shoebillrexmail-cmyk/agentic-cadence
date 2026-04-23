@@ -1,5 +1,5 @@
 ---
-name: agile-sprint
+name: cadence-sprint
 description: Manage sprint lifecycle — start new sprint, pull stories from backlog, or run a retro. Use when managing sprints, starting new ones, or reviewing sprint progress.
 ---
 

@@ -1,73 +1,81 @@
 ---
-name: agile-interview
+name: cadence-interview
 description: Run a Socratic interview to clarify vague requirements before story creation. Use when the user describes a feature vaguely, says "I need X" without details, or explicitly wants to discuss a feature before creating a story.
 ---
 
 # Socratic Interview for Story Clarification
 
-Conduct a structured Socratic interview to clarify a feature idea. The argument describes the feature or includes flags.
+Conduct a structured Socratic interview to clarify a feature idea.
+
+Pi has no subagent runtime. The interview cycles through five role perspectives whose full prompts live in `.pi/prompts/shared-agents.md` (auto-generated from `shared/agents/`). This skill orchestrates those roles by referencing them by name; if deeper behavior is needed, consult the full role definition in shared-agents.md.
+
+Roles used:
+- `ontologist` — 4 fundamental questions (Essence / Root Cause / Prerequisites / Hidden Assumptions)
+- `socratic-interviewer` — one targeted question per round
+- `breadth-keeper` — tracks multiple concerns; prevents collapse
+- `simplifier` — challenges scope; proposes cuts
+- `seed-closer` — decides when to close
 
 ## Arguments
-- `--gate-only` — Skip interview, run Ontology Gate (4 questions) on existing story only
-- `--max-rounds N` (default: 5) — Maximum interview rounds
+- `--gate-only` — Skip interview, run Ontology Gate on existing story only
+- `--max-rounds N` (default: 5, overridable via Cadence Config `interview.max_rounds`) — Maximum interview rounds
 - (default) — Run full interview
+
+## Step 0: Load Cadence Config
+
+Before anything else, load per-project overrides from `AGENTS.md`:
+
+1. Find `AGENTS.md` at the repo root
+2. Shell out: `node {baseDir}/parse-cadence-config.mjs <path-to-AGENTS.md>`
+3. Parse JSON: `{ config, warnings, effective }`
+4. Log warnings + applied config to user
+5. Apply:
+   - `effective["interview.max_rounds"]` — cap (the `--max-rounds` CLI flag wins if explicitly passed)
+   - `effective["agents.disable"]` — when applying a role, if its name is in this list, skip with `Skipped disabled role: <name>` log
+
+Missing parser / config file → proceed with defaults.
 
 ## Mode 1: Full Interview
 
 ### Step 1: Analyze Request
 
-Read the feature description. Determine:
-- **Ambiguity**: Vague → interview. Clear → suggest skipping to `/skill:agile-story`.
-- **Tracks**: Extract independent concerns or deliverables for breadth tracking.
+Read the feature description. Decide:
+- **Vague** → proceed with interview
+- **Clear** → suggest skipping to `/skill:cadence-story` directly
+- **Multi-track** → note all tracks for breadth tracking
 
-### Step 2: Socratic Interview (2-5 rounds)
+### Step 2: Round 1 — Framing
 
-Ask ONE question per round. Wait for the answer. Cycle through perspectives:
+Run the `ontologist` role on the raw request (interview mode) — produce the 4-question verdict.
+Run the `breadth-keeper` role — extract the initial track list.
 
-#### Round 1: Scope & Essence
-- **"What IS this, really?"** — Strip away surface details
-- **"What's the core problem?"** — Find the actual need
-- List all ambiguity tracks
+Present a 2-3 sentence framing summary to the user.
 
-#### Rounds 2-4: Deepen & Challenge
+### Step 3: Rounds 2-4 — Deepen & Challenge
 
-**Ontologist** (pick as needed):
-- "Is this the root cause or a symptom?"
-- "What must exist before this can work?"
-- "What are we assuming?"
+Each round:
+1. Pick the role most relevant given last-round signals:
+   - Symptom / wrong assumption flagged → stay with `ontologist`
+   - `breadth-keeper` said `SHIFT_TO_<track>` → shift to new track
+   - Scope growing → run `simplifier`
+   - Otherwise → `socratic-interviewer`
+2. Apply that role's prompt format to produce ONE question.
+3. Ask the user. Wait for answer.
+4. Update round history.
+5. End of round: re-run `breadth-keeper` (track status) + `seed-closer` (closure check, from round 3).
 
-**Breadth Keeper** (after 2 rounds on one track):
-- "What about [other track you mentioned]?"
-- "Any other concerns besides this?"
+Stop when `seed-closer` returns `CLOSE` or `ESCALATE`.
 
-**Simplifier** (when scope seems large):
-- "What's the simplest version that could work?"
-- "What can we cut without losing core value?"
+### Step 4: Final Ontology Gate
 
-#### Round 5: Closure Check
+Run `ontologist` in gate-only mode on the consolidated scope. Render the report table verbatim. Act on verdict:
 
-Verify scope, non-goals, outputs, and verification are clear. If yes:
+- `PROCEED` → present summary
+- `SPLIT` → "This is a symptom of [X]. Story for root cause instead?"
+- `REWRITE` → rewrite scope with corrections, re-gate
+- `BLOCK` → create prerequisite stories first
 
-**"I have a clear picture: [scope]. Out of scope: [non-goals]. Proceed to create story?"**
-
-### Step 3: Ontology Gate
-
-Run the 4-question quality gate:
-
-| Question | Check |
-|----------|-------|
-| **Essence**: What IS this? | Core problem described |
-| **Root Cause**: Root cause or symptom? | Addressing actual cause |
-| **Prerequisites**: What must exist first? | Dependencies identified |
-| **Assumptions**: What are we assuming? | Assumptions documented |
-
-Outcomes:
-- **All pass** → Present summary
-- **Symptom detected** → "This is a symptom of [X]. Story for root cause instead?"
-- **Missing prerequisites** → "Depends on [X]. Create prerequisite story first?"
-- **Wrong assumptions** → Rewrite with corrected assumptions
-
-### Step 4: Present Summary
+### Step 5: Present Summary
 
 ```
 ## Interview Summary: [Feature]
@@ -82,7 +90,7 @@ Outcomes:
 [Out of scope]
 
 ### Assumptions Surfaced
-[Confirmed/rejected assumptions]
+[Confirmed/rejected]
 
 ### Simplification
 [What was cut]
@@ -91,18 +99,19 @@ Outcomes:
 [How success is judged]
 ```
 
-Ask: "Ready to create the story with `/skill:agile-story`?"
+Ask: "Ready to create the story with `/skill:cadence-story`?"
 
 ---
 
 ## Mode 2: Gate Only (`--gate-only`)
 
-Find the story (from argument or current branch), run the 4 questions, report PASS/FAIL per question with suggestions.
+Find the story (from argument or current branch), run the `ontologist` role in gate-only mode, render the 4-question report with PASS/FAIL and recommended fixes.
 
 ---
 
 ## Integration
 
-- Runs before `/skill:agile-story` for vague features
-- `agile-story` auto-triggers interview with `--interview` flag
-- Standalone: `/skill:agile-interview "build a payment system"`
+- Runs before `/skill:cadence-story` for vague features
+- `cadence-story` auto-triggers this skill with `--interview` flag
+- Standalone: `/skill:cadence-interview "build a payment system"`
+- Full role prompts: `.pi/prompts/shared-agents.md`

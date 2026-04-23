@@ -1,5 +1,5 @@
 ---
-name: agile-done
+name: cadence-done
 description: Complete the current story — verify acceptance criteria, update docs, push, create PR, run review. Use when the user says they're done with a story or wants to ship.
 ---
 
@@ -39,13 +39,13 @@ Complete the current story and create a pull request.
 6. Update story's **Status** to `In Review`
 7. Update story's **PR** field with the URL
 
-8. **Trigger automated review**: Tell the user to run `/skill:agile-review` or proceed with review steps:
+8. **Trigger automated review**: Tell the user to run `/skill:cadence-review` or proceed with review steps:
    - Detect changed files and project type
    - Run code review and security review
    - If CRITICAL/HIGH findings: fix, commit, re-review (max 3 cycles)
    - Hard gates: tests must pass, no CRITICAL security findings
 
-9. **Learning extraction**: Run `/skill:agile-learn` to extract learnings:
+9. **Learning extraction**: Run `/skill:cadence-learn` to extract learnings:
    - Classify as cross-cutting (`_Knowledge/`) or project-specific (`Learning/`)
    - Generate gotchas, patterns, guides, writeups
    - Update indexes
