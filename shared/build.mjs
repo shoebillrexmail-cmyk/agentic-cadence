@@ -65,15 +65,37 @@ function toolsFor(agentName) {
 }
 
 /**
- * Default model per agent. Sonnet for complex reasoning, Haiku for lightweight eliciting.
+ * Model tier per agent — assigned by reasoning depth × downstream impact.
+ *
+ * Opus (8):    deep reasoning + high-leverage decisions
+ *              (gates, foundational specs, binding rulings, stuck recovery)
+ * Sonnet (7):  balanced reasoning, local impact (default tier)
+ * Haiku (4):   mechanical bookkeeping / aggregation / structured eliciting
+ *
+ * See STORY-agent-model-tiers for the full rationale per agent.
  */
 function modelFor(agentName) {
-  const haikuAgents = new Set([
-    "socratic-interviewer",
-    "breadth-keeper",
-    "seed-closer",
+  const opusAgents = new Set([
+    "ontologist",          // gates whether story is even the right problem
+    "seed-architect",      // produces structured spec every later agent consumes
+    "ontology-analyst",    // formal domain modeling; errors propagate
+    "contrarian",          // adversarial assumption inversion
+    "semantic-evaluator",  // goal-alignment + drift scoring (intent vs code)
+    "advocate",            // honest steel-manning for consensus
+    "judge",               // binding final arbitration
+    "hacker",              // creative constraint-breaking when stuck
   ]);
-  return haikuAgents.has(agentName) ? "haiku" : "sonnet";
+
+  const haikuAgents = new Set([
+    "socratic-interviewer", // one question per round
+    "breadth-keeper",       // track-list bookkeeping
+    "seed-closer",          // 7-criterion closure checklist
+    "evaluator",            // pure aggregator of stage outputs → verdict
+  ]);
+
+  if (opusAgents.has(agentName)) return "opus";
+  if (haikuAgents.has(agentName)) return "haiku";
+  return "sonnet";
 }
 
 /**
