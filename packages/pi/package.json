@@ -1,0 +1,27 @@
+{
+  "name": "pi-cadence",
+  "version": "1.0.0",
+  "description": "Pi package — Agent workflow framework with Socratic interviews, specialist guilds, Obsidian vault, Kanban boards, TDD, automated review, and learning system",
+  "author": "koena",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shoebillrexmail-cmyk/agentic-cadence"
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "agentic",
+    "cadence",
+    "obsidian",
+    "kanban",
+    "project-management",
+    "tdd",
+    "code-review",
+    "specialist-agents"
+  ],
+  "pi": {
+    "extensions": ["./.pi/extensions"],
+    "skills": ["./.pi/skills"],
+    "prompts": ["./.pi/prompts"]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@cadence/domain-opnet",
+  "version": "1.0.0",
+  "description": "OPNet Bitcoin L1 domain plugin for Cadence — 17 specialist agents, 12K lines of domain knowledge, 27 real-bug patterns",
+  "private": true,
+  "domain": "opnet",
+  "agents": 18,
+  "knowledgeSlices": 11,
+  "skills": ["pua", "audit-from-bugs", "verify-spec"],
+  "scripts": {
+    "audit": "echo 'Run opnet-auditor from Claude Code or opnet_audit MCP tool'"
+  }
+}

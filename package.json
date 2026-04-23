@@ -1,0 +1,31 @@
+{
+  "name": "agentic-cadence",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Agent workflow framework — Socratic interviews, specialist guilds, structured stories, TDD, automated review, and domain plugins",
+  "author": "koena",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shoebillrexmail-cmyk/agentic-cadence"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agentic",
+    "cadence",
+    "obsidian",
+    "kanban",
+    "project-management",
+    "tdd",
+    "code-review",
+    "claude-code",
+    "pi-coding-agent",
+    "specialist-agents",
+    "domain-plugins"
+  ],
+  "scripts": {
+    "build": "node shared/build.mjs",
+    "build:claude": "node shared/build.mjs claude",
+    "build:pi": "node shared/build.mjs pi",
+    "build:domain": "node shared/build.mjs domain"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "cadence",
+  "owner": {
+    "name": "koena"
+  },
+  "metadata": {
+    "description": "Agent workflow framework for Claude Code — Socratic interviews, specialist guilds, Obsidian Kanban boards, TDD, automated review cycles"
+  },
+  "plugins": [
+    {
+      "name": "cadence",
+      "source": "./",
+      "description": "Full agent workflow with Socratic interviews, specialist guilds, Obsidian vault, Kanban boards, structured stories, TDD enforcement, and automated review",
+      "version": "1.0.0"
+    }
+  ]
+}

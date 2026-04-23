@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -v \"^$\")",
+      "Bash(/tmp/summary.txt:*)",
+      "Read(//tmp/**)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Read(//c/Github/frogop/.claude/**)",
+      "Read(//c/Github/frogop/**)"
+    ]
+  }
+}

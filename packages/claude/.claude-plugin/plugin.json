@@ -1,0 +1,11 @@
+{
+  "name": "cadence",
+  "version": "1.0.0",
+  "description": "Agent workflow framework with Socratic interviews, specialist guilds, structured stories, TDD enforcement, automated review cycles, and domain plugins — for Claude Code",
+  "author": {
+    "name": "koena"
+  },
+  "repository": "https://github.com/shoebillrexmail-cmyk/agentic-cadence",
+  "license": "MIT",
+  "keywords": ["agentic", "cadence", "obsidian", "kanban", "worktree", "project-management", "specialist-agents"]
+}
