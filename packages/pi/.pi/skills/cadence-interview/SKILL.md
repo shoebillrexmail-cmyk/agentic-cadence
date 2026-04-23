@@ -1,5 +1,5 @@
 ---
-name: agile-interview
+name: cadence-interview
 description: Run a Socratic interview to clarify vague requirements before story creation. Use when the user describes a feature vaguely, says "I need X" without details, or explicitly wants to discuss a feature before creating a story.
 ---
 
@@ -41,7 +41,7 @@ Missing parser / config file → proceed with defaults.
 
 Read the feature description. Decide:
 - **Vague** → proceed with interview
-- **Clear** → suggest skipping to `/skill:agile-story` directly
+- **Clear** → suggest skipping to `/skill:cadence-story` directly
 - **Multi-track** → note all tracks for breadth tracking
 
 ### Step 2: Round 1 — Framing
@@ -99,7 +99,7 @@ Run `ontologist` in gate-only mode on the consolidated scope. Render the report 
 [How success is judged]
 ```
 
-Ask: "Ready to create the story with `/skill:agile-story`?"
+Ask: "Ready to create the story with `/skill:cadence-story`?"
 
 ---
 
@@ -111,7 +111,7 @@ Find the story (from argument or current branch), run the `ontologist` role in g
 
 ## Integration
 
-- Runs before `/skill:agile-story` for vague features
-- `agile-story` auto-triggers this skill with `--interview` flag
-- Standalone: `/skill:agile-interview "build a payment system"`
+- Runs before `/skill:cadence-story` for vague features
+- `cadence-story` auto-triggers this skill with `--interview` flag
+- Standalone: `/skill:cadence-interview "build a payment system"`
 - Full role prompts: `.pi/prompts/shared-agents.md`

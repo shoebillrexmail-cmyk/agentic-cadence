@@ -1,5 +1,5 @@
 ---
-name: agile-init
+name: cadence-init
 description: Initialize project workflow for a project — create vault structure, AGENTS.md config. Use when setting up a new project with workflow.
 ---
 

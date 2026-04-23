@@ -1,5 +1,5 @@
 ---
-name: agile-review
+name: cadence-review
 description: Auto-review story changes — detect project type, run code review with fix/re-review cycle (max 3 iterations). Use when reviewing code, checking quality, or the user asks for a review.
 ---
 

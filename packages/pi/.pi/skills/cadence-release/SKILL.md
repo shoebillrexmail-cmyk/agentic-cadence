@@ -1,5 +1,5 @@
 ---
-name: agile-release
+name: cadence-release
 description: Cut a release — version bump, changelog, tag, merge to master, GitHub Release. Use when the user wants to ship a release, tag a version, or merge develop to master.
 ---
 

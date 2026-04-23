@@ -1,5 +1,5 @@
 ---
-name: agile-story
+name: cadence-story
 description: Create a new user story with structured spec, testing strategy, and specialist consultation. Use when the user describes a new feature, request, or piece of work.
 ---
 

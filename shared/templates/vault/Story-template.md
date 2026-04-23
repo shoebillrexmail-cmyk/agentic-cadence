@@ -13,7 +13,7 @@ I want **[capability]**,
 so that **[benefit]**.
 
 ## Interview Notes
-*(Populated if `agile-interview` was run before story creation)*
+*(Populated if `cadence-interview` was run before story creation)*
 
 ### Clarified Scope
 [What we're building, in specific terms]

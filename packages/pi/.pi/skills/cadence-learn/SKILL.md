@@ -1,5 +1,5 @@
 ---
-name: agile-learn
+name: cadence-learn
 description: Extract learnings from a completed story — generate gotchas, patterns, guides, and writeups in the Obsidian vault. Use after completing a story to capture knowledge.
 ---
 

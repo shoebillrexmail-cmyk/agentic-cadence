@@ -1,5 +1,5 @@
 ---
-name: agile-pickup
+name: cadence-pickup
 description: Pick up a story from the sprint board — load specialist context, prior learnings, enforce TDD, start working. Use when the user wants to start working on a story.
 ---
 
