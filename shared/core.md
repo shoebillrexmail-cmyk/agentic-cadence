@@ -585,7 +585,9 @@ agents.disable: [contrarian, simplifier]
 # comments allowed
 ```
 
-Parser: `shared/scripts/parse-cadence-config.mjs` — shared between Claude and Pi. Skills invoke it via `node shared/scripts/parse-cadence-config.mjs <path-to-context-file>` and parse the JSON output.
+Parser: `shared/scripts/parse-cadence-config.mjs` — canonical source lives here; the build script (`shared/build.mjs`) copies it into each skill directory that needs it. Skills then invoke the local copy so the path resolves regardless of the user's cwd:
+- **Claude Code**: `node "${CLAUDE_SKILL_DIR}/parse-cadence-config.mjs" <path-to-context-file>` — `${CLAUDE_SKILL_DIR}` is an env var exposed by Claude Code.
+- **Pi**: `node {baseDir}/parse-cadence-config.mjs <path-to-context-file>` — `{baseDir}` is a text placeholder Pi substitutes to the skill's directory at invocation time.
 
 ### Supported keys
 
@@ -615,7 +617,7 @@ Only methodology tuning is overridable. Safety gates stay at the baseline.
 Every cadence skill (`cadence-interview`, `cadence-story`, `cadence-review`, `cadence-pickup`) includes a **Step 0: Load Cadence Config** that:
 
 1. Locates the project context file (`CLAUDE.md` / `AGENTS.md`) — same source as `## Obsidian Project`
-2. Runs `node shared/scripts/parse-cadence-config.mjs <path>` via Bash
+2. Runs the parser via Bash — `node "${CLAUDE_SKILL_DIR}/parse-cadence-config.mjs" <path>` on Claude Code or `node {baseDir}/parse-cadence-config.mjs <path>` on Pi
 3. Parses the JSON: `{ config, warnings, effective }`
 4. Logs any warnings to the user: `Cadence config warnings: …`
 5. If `config` is non-empty, logs: `Cadence config applied: { …user-supplied keys… }`

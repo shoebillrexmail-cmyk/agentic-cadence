@@ -17,7 +17,7 @@ The argument `"$ARGUMENTS"` describes the feature or includes flags.
 Before anything else, load per-project overrides:
 
 1. Find the project context file path (`CLAUDE.md` at repo root)
-2. Run via Bash: `node shared/scripts/parse-cadence-config.mjs <path-to-CLAUDE.md>`
+2. Run via Bash: `node "${CLAUDE_SKILL_DIR}/parse-cadence-config.mjs" <path-to-CLAUDE.md>`
 3. Parse the JSON output: `{ config, warnings, effective }`
 4. If `warnings` is non-empty: display `Cadence config warnings: <list>` to the user
 5. If `config` is non-empty: display `Cadence config applied: <config>`

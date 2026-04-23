@@ -12,7 +12,7 @@ Cut a release from develop to master. The argument describes the release intent 
 Before anything else, load per-project overrides:
 
 1. Find `AGENTS.md` at repo root
-2. Shell: `node shared/scripts/parse-cadence-config.mjs <path-to-AGENTS.md>`
+2. Shell: `node {baseDir}/parse-cadence-config.mjs <path-to-AGENTS.md>`
 3. Parse JSON: `{ config, warnings, effective }`
 4. Log warnings + applied config to user
 5. Release skill has no configurable keys today — this step exists for consistency and in case `agents.disable` comes to matter (e.g., disabling a future release-time auditor role).

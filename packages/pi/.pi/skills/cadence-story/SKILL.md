@@ -12,7 +12,7 @@ Create a new agile user story. The argument describes what the story is about.
 Before anything else, load per-project overrides:
 
 1. Find `AGENTS.md` at the repo root
-2. Shell out: `node shared/scripts/parse-cadence-config.mjs <path-to-AGENTS.md>`
+2. Shell out: `node {baseDir}/parse-cadence-config.mjs <path-to-AGENTS.md>`
 3. Parse JSON: `{ config, warnings, effective }`
 4. Log warnings + applied config to user
 5. Apply:

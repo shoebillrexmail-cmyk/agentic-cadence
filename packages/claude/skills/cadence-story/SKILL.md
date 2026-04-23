@@ -9,7 +9,7 @@ Create a new user story. The argument "$ARGUMENTS" describes what the story is a
 Before anything else, load per-project overrides:
 
 1. Find `CLAUDE.md` at the repo root
-2. Run via Bash: `node shared/scripts/parse-cadence-config.mjs <path-to-CLAUDE.md>`
+2. Run via Bash: `node "${CLAUDE_SKILL_DIR}/parse-cadence-config.mjs" <path-to-CLAUDE.md>`
 3. Parse JSON: `{ config, warnings, effective }`
 4. Log warnings + applied config to the user (see the Cadence Config section in shared/core.md)
 5. Apply to downstream steps:

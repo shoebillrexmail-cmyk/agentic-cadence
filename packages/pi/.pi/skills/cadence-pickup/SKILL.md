@@ -12,7 +12,7 @@ Pick up a story and start working. Argument: story name (or empty to show option
 Before anything else, load per-project overrides:
 
 1. Find `AGENTS.md` at repo root
-2. Shell: `node shared/scripts/parse-cadence-config.mjs <path-to-AGENTS.md>`
+2. Shell: `node {baseDir}/parse-cadence-config.mjs <path-to-AGENTS.md>`
 3. Parse JSON: `{ config, warnings, effective }`
 4. Log warnings + applied config
 5. Apply:

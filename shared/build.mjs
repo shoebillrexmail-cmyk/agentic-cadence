@@ -20,6 +20,7 @@ import {
   existsSync,
   readdirSync,
   rmSync,
+  copyFileSync,
 } from "node:fs";
 import { resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,6 +52,41 @@ function readSharedAgents() {
 
       return { name, body, description: firstLine.trim() };
     });
+}
+
+/**
+ * Skills that invoke `parse-cadence-config.mjs` from their Bash step.
+ * The script is copied into each skill directory so the SKILL.md can reference
+ * it via Claude's `${CLAUDE_SKILL_DIR}` env var or Pi's `{baseDir}` placeholder —
+ * both of which resolve to the skill's own install directory, not the user's cwd.
+ */
+const SKILLS_USING_PARSER = {
+  claude: ["cadence-interview", "cadence-pickup", "cadence-review", "cadence-story"],
+  pi: ["cadence-interview", "cadence-pickup", "cadence-release", "cadence-review", "cadence-story"],
+};
+
+/**
+ * Copy the canonical parser script into each skill directory that needs it.
+ * Source of truth: shared/scripts/parse-cadence-config.mjs
+ */
+function copyParserToSkills(skillRoot, skillNames) {
+  const src = resolve(ROOT, "shared/scripts/parse-cadence-config.mjs");
+  if (!existsSync(src)) {
+    console.log(`   ⚠️  Parser source missing: ${src}`);
+    return 0;
+  }
+  let copied = 0;
+  for (const name of skillNames) {
+    const skillDir = resolve(ROOT, skillRoot, name);
+    if (!existsSync(skillDir)) {
+      console.log(`   ⚠️  Skill dir missing, skipped: ${skillRoot}/${name}`);
+      continue;
+    }
+    const dest = resolve(skillDir, "parse-cadence-config.mjs");
+    copyFileSync(src, dest);
+    copied++;
+  }
+  return copied;
 }
 
 /**
@@ -211,6 +247,9 @@ See \`git-workflow.md\` for full branching strategy, worktree usage, and release
   }
 
   console.log(`   → ${agents.length} shared agents emitted`);
+
+  const copied = copyParserToSkills("packages/claude/skills", SKILLS_USING_PARSER.claude);
+  console.log(`   → parser copied to ${copied} Claude skills`);
 }
 
 /**
@@ -280,6 +319,9 @@ ${core}
       `   ✅ packages/pi/.pi/prompts/shared-agents.md (${agents.length} roles)`
     );
   }
+
+  const copied = copyParserToSkills("packages/pi/.pi/skills", SKILLS_USING_PARSER.pi);
+  console.log(`   → parser copied to ${copied} Pi skills`);
 }
 
 function buildDomain() {
