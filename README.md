@@ -200,20 +200,6 @@ Prerequisites:
 
 ---
 
-## Origins
-
-Agentic Cadence synthesizes three streams:
-
-| Source | Contribution |
-|--------|--------------|
-| **[Ouroboros](https://github.com/Q00/ouroboros)** | Socratic Interviewer, Ontologist, Breadth Keeper, Simplifier, Seed Closer, multi-stage evaluation |
-| **OPNet Knowledge** | 17 domain specialists, 27 real-bug audit patterns, PUA methodology, TLA+ formal verification, cross-layer validation |
-| **Original agile-flow** | Obsidian vault integration, Kanban boards, learning system, specialist convention, git workflow, TDD enforcement |
-
-See [`shared/research/`](shared/research/) for full analysis.
-
----
-
 ## License
 
 MIT
