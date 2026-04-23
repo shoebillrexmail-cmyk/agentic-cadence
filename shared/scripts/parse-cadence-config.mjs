@@ -58,6 +58,10 @@ function coerceInt(raw) {
   if (!/^-?\d+$/.test(trimmed)) return { error: "expected int" };
   const value = parseInt(trimmed, 10);
   if (Number.isNaN(value)) return { error: "expected int" };
+  // Reject values outside the safe-integer range — typo or malicious input.
+  if (!Number.isSafeInteger(value)) {
+    return { error: "expected int (value exceeds safe integer range)" };
+  }
   return { value };
 }
 
@@ -129,10 +133,16 @@ function extractBlockLines(source) {
  *   - effective: DEFAULTS merged with config (what skills actually use)
  */
 export function parseConfig(source) {
-  const config = {};
+  // F-003: tolerate non-string inputs (numbers, objects, null, undefined) —
+  // module callers might pass anything; fail-soft contract says never throw.
+  const src = typeof source === "string" ? source : "";
+
+  // F-002: Object.create(null) defends against later `key in config` checks
+  // picking up prototype pollution; and lets us append user keys safely.
+  const config = Object.create(null);
   const warnings = [];
 
-  const lines = extractBlockLines(source || "");
+  const lines = extractBlockLines(src);
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -150,8 +160,10 @@ export function parseConfig(source) {
     const key = line.slice(0, colonIdx).trim();
     const raw = line.slice(colonIdx + 1).trim();
 
-    // Unknown key
-    if (!(key in SCHEMA)) {
+    // Unknown key — F-001: use Object.hasOwn to avoid prototype-chain keys
+    // like `__proto__`, `constructor`, `toString` passing the check and
+    // then crashing on the downstream destructure of SCHEMA[key].
+    if (!Object.hasOwn(SCHEMA, key)) {
       warnings.push(`unknown key: ${key} (ignored)`);
       continue;
     }
@@ -176,13 +188,20 @@ export function parseConfig(source) {
     config[key] = value;
   }
 
-  // Build effective = DEFAULTS overlaid with config
-  const effective = { ...DEFAULTS };
-  for (const [key, value] of Object.entries(config)) {
-    effective[key] = value;
+  // Build effective = DEFAULTS overlaid with config.
+  // F-002: structuredClone so each call gets a fresh copy of array/object
+  // defaults; callers can mutate `effective` safely without polluting the
+  // shared DEFAULTS export or the next parseConfig() call's output.
+  const effective = structuredClone(DEFAULTS);
+  for (const key of Object.keys(config)) {
+    effective[key] = config[key];
   }
 
-  return { config, warnings, effective };
+  // Normalize config to a plain object for JSON-serialization friendliness
+  // (Object.create(null) objects don't JSON.stringify cleanly in all runtimes).
+  const configPlain = { ...config };
+
+  return { config: configPlain, warnings, effective };
 }
 
 // ── CLI entry ──────────────────────────────────────────────────────────

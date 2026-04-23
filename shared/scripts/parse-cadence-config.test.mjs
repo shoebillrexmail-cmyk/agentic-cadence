@@ -227,6 +227,72 @@ agents.disable: [contrarian]
   });
 });
 
+describe("parseConfig — adversarial inputs (F-001 / F-002 / F-003 / F-004)", () => {
+  test("F-001: __proto__ key in block does not crash, just warns", () => {
+    const src = `## Cadence Config
+__proto__: {"polluted":true}
+constructor: whatever
+toString: nope
+interview.max_rounds: 2
+`;
+    // Must not throw. All three keys are unknown, so all warn + ignored.
+    const result = parseConfig(src);
+    assert.equal(result.config["interview.max_rounds"], 2);
+    // Three unknown-key warnings expected
+    const protoWarns = result.warnings.filter((w) => /__proto__|constructor|toString/.test(w));
+    assert.equal(protoWarns.length, 3);
+    // And global prototype is not polluted
+    assert.equal({}.polluted, undefined);
+  });
+
+  test("F-002: effective arrays are not shared between calls", () => {
+    const first = parseConfig("");
+    first.effective["agents.disable"].push("evil");
+
+    const second = parseConfig("");
+    assert.deepEqual(second.effective["agents.disable"], []);
+  });
+
+  test("F-002: DEFAULTS array reference is stable but effective gets a fresh copy", () => {
+    const defaultsBefore = DEFAULTS["agents.disable"];
+    const { effective } = parseConfig("");
+    assert.notStrictEqual(effective["agents.disable"], DEFAULTS["agents.disable"]);
+    // Mutating effective does not touch DEFAULTS
+    effective["agents.disable"].push("x");
+    assert.deepEqual(DEFAULTS["agents.disable"], []);
+    assert.strictEqual(DEFAULTS["agents.disable"], defaultsBefore);
+  });
+
+  test("F-003: non-string input does not throw — returns defaults", () => {
+    const cases = [null, undefined, 42, {}, [], true];
+    for (const input of cases) {
+      const { config, effective } = parseConfig(input);
+      assert.deepEqual(config, {});
+      assert.deepEqual(effective, DEFAULTS);
+    }
+  });
+
+  test("F-004: unsafe integer is rejected with warning", () => {
+    const src = `## Cadence Config
+interview.max_rounds: 99999999999999999999
+`;
+    const { config, warnings, effective } = parseConfig(src);
+    assert.equal(config["interview.max_rounds"], undefined);
+    assert.equal(effective["interview.max_rounds"], DEFAULTS["interview.max_rounds"]);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /safe integer|expected int/i);
+  });
+
+  test("F-004: Number.MAX_SAFE_INTEGER itself is accepted", () => {
+    const src = `## Cadence Config
+interview.max_rounds: ${Number.MAX_SAFE_INTEGER}
+`;
+    const { config, warnings } = parseConfig(src);
+    assert.equal(config["interview.max_rounds"], Number.MAX_SAFE_INTEGER);
+    assert.deepEqual(warnings, []);
+  });
+});
+
 describe("DEFAULTS shape", () => {
   test("DEFAULTS has every key documented in SPEC", () => {
     const required = [
