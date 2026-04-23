@@ -1,7 +1,7 @@
 ---
 name: evaluator
 description: "Aggregate stage outputs (mechanical, semantic, domain, consensus) into a single consolidated findings ledger and overall verdict — the calling skill orchestrates the stages; this agent computes the verdict."
-model: sonnet
+model: haiku
 tools:
   - Read
   - Glob

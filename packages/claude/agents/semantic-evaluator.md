@@ -1,7 +1,7 @@
 ---
 name: semantic-evaluator
 description: "Measure how well an implementation matches the original story intent — goal alignment and drift score — independent of whether the code builds or tests pass."
-model: sonnet
+model: opus
 tools:
   - Read
   - Glob

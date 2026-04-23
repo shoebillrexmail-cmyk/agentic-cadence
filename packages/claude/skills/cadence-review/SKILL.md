@@ -21,7 +21,8 @@ Before anything else, load per-project overrides:
 5. Apply to downstream:
    - `effective["review.max_cycles"]` — cap on review/fix iterations (`--max-cycles` flag wins if passed)
    - `effective["review.force_consensus"]` — if true, treat it the same as `--consensus` (Stage 4 runs every cycle)
-   - `effective["agents.disable"]` — skip Task invocations for listed agents (applies to any agent in the pipeline: semantic-evaluator, qa-judge, advocate, judge, consensus-reviewer, pattern-auditor, integration-validator, hacker). Required agents like Stage 1 mechanical checks are NOT configurable.
+   - `effective["agents.disable"]` — skip Task invocations for listed agents (applies to any agent in the pipeline: semantic-evaluator, ontologist, contrarian, qa-judge, advocate, judge, consensus-reviewer, pattern-auditor, integration-validator, design-auditor, hacker). Required agents like Stage 1 mechanical checks are NOT configurable.
+   - `effective["review.design_doc_path"]` — explicit path to the design document (defaults: `design.md`, `DESIGN.md`, `docs/design.md`, `docs/DESIGN.md`, first match wins). If set to `NONE`, the `design-auditor` agent is skipped.
 
 Safety note: security reviewer and mechanical Stage 1 checks cannot be disabled via config. If `agents.disable` contains them, warn and ignore.
 
@@ -100,17 +101,31 @@ Run directly in the skill (no agent call):
 
 Collect into `stage1_output = {status: PASS|FAIL, findings: [...]}`. If FAIL, stages 2-4 are NOT_RUN this cycle — skip straight to aggregation.
 
-### Stage 2 — Semantic
+### Stage 2 — Semantic (parallel)
 
-**Task → `semantic-evaluator`** with:
-- The full story (structured spec fields — GOAL, CONSTRAINTS, NON_GOALS, EVALUATION_PRINCIPLES, EXIT_CONDITIONS from `seed-architect`)
-- Implementation summary (diff summary + commit messages)
-- Acceptance criteria list
-- Interview notes (if available)
+Two checks run in parallel — one measures code-level drift against the structured spec, the other re-checks whether the implementation still solves the root problem.
 
-Collect `stage2_output` (its full returned block).
+Launch in parallel via Task tool:
 
-If verdict is `DRIFTED`, stages 3-4 are NOT_RUN — go straight to aggregation; the skill fixes drift before further review.
+1. **Task → `semantic-evaluator`** with:
+   - The full story (structured spec fields — GOAL, CONSTRAINTS, NON_GOALS, EVALUATION_PRINCIPLES, EXIT_CONDITIONS from `seed-architect`)
+   - Implementation summary (diff summary + commit messages)
+   - Acceptance criteria list
+   - Interview notes (if available)
+
+2. **Task → `ontologist`** in `gate-only` mode with a **post-implementation target**: the full story file content PLUS an appended `## Current Implementation` section containing:
+   - `git diff develop...HEAD --stat` summary
+   - New or materially changed method/API signatures
+   - New dependencies or external calls introduced
+   - Any new storage / state shape
+
+   This post-impl gate asks the 4 questions (Essence, Root Cause, Prerequisites, Hidden Assumptions) against the *as-built* artifact. It catches the case where the code drifted away from the root problem even when `semantic-evaluator` still says spec-fields match. Skip if `agents.disable` includes `ontologist`.
+
+Collect `stage2_output = {semantic_evaluator: <block>, ontologist_post_impl: <block | NOT_RUN>}`.
+
+If **either** of these is true, stages 3-4 are NOT_RUN this cycle — go straight to aggregation; the skill fixes design-level drift before resuming code-level review:
+- `semantic-evaluator` verdict is `DRIFTED`
+- `ontologist` verdict is `REWRITE`, `SPLIT`, or `BLOCK`
 
 ### Stage 3 — Domain review (parallel)
 
@@ -121,9 +136,21 @@ Launch in parallel via Task tool:
 - Language-specific: **Task → `go-reviewer`** / **`python-reviewer`** if relevant files changed
 - Domain-specific: each agent from the roster built in Step 3
 
-Optional augmentations (if project configured):
-- **Task → `pattern-auditor`** with domain's bug-pattern catalog + changed files
-- **Task → `integration-validator`** with domain's declared layer boundaries
+Optional augmentations:
+- **Task → `pattern-auditor`** (if project configured) with domain's bug-pattern catalog + changed files
+- **Task → `integration-validator`** (if project configured) with domain's declared layer boundaries
+- **Task → `contrarian`** (if the story has a populated `## Assumption Stress Test` section OR Stage 4 triggers are active) with:
+  - Target = story + implementation summary
+  - Stated assumptions = the list from the story's `## Assumption Stress Test` section (from `cadence-story` Step 5), plus any assumptions surfaced by the post-impl ontologist in Stage 2
+  - Domain context from story's `## Specialist Context`
+
+  Contrarian inverts each assumption against the *code* and reports which inversions the implementation accidentally admits. A `FLAG_RISK` or `REWRITE_APPROACH` recommendation is treated as a HIGH-severity finding in the ledger. Skip if `agents.disable` includes `contrarian`.
+- **Task → `design-auditor`** (if a design doc exists — resolve path from `review.design_doc_path`, else first match of `design.md` / `DESIGN.md` / `docs/design.md` / `docs/DESIGN.md`; skip entirely if none exist or config is `NONE` or `agents.disable` includes `design-auditor`) with:
+  - Design document path
+  - Changed files list + diff content
+  - Story GOAL / CONSTRAINTS / NON_GOALS
+
+  Design-auditor produces a discrepancy table with a per-row resolution: `UPDATE_CODE`, `UPDATE_DESIGN`, or `ASK_USER`. It does NOT default to fixing the code when the design doc and code disagree.
 
 Collect all outputs into `stage3_outputs = [...]`.
 
@@ -150,8 +177,15 @@ Collect `stage4_output` (consensus-reviewer's consolidated ledger).
 
 **Task → `evaluator`** with:
 - The full story (for context only — evaluator does not re-evaluate)
-- `stage1_output`, `stage2_output`, `stage3_outputs`, `stage4_output` (with NOT_RUN for any skipped stage)
+- `stage1_output`, `stage2_output` (now `{semantic_evaluator, ontologist_post_impl}`), `stage3_outputs` (includes `contrarian` when run), `stage4_output` (with NOT_RUN for any skipped stage/agent)
 - Prior findings ledger from earlier cycles
+
+Evaluator severity mapping for the new inputs:
+- `ontologist_post_impl` verdict `REWRITE` / `SPLIT` → one CRITICAL finding (design-level drift; blocks PASS)
+- `ontologist_post_impl` verdict `BLOCK` → one CRITICAL finding (missing prerequisite)
+- `contrarian` recommendation `REWRITE_APPROACH` → one CRITICAL finding
+- `contrarian` recommendation `FLAG_RISK_<#s>` → one HIGH finding per flagged inversion
+- `design-auditor` discrepancies become findings with severity as reported by the agent AND a `resolution_hint` field copied verbatim (`UPDATE_CODE` / `UPDATE_DESIGN` / `ASK_USER`). `NO_DESIGN_DOC` is reported as an advisory note, not a finding.
 
 The evaluator returns: `Overall Verdict`, consolidated `Findings Ledger` with stable cross-cycle IDs, `Blocking findings` list, `Next action` directive, and `Stages to re-run on next cycle`.
 
@@ -188,7 +222,15 @@ If `--skip-fix` was passed: report all findings and stop (no fix attempt).
 
 If `cycle < max_cycles`:
 1. Display findings summary: "{N} blocking issues found (cycle {cycle}/{max_cycles})"
-2. For each blocking finding, apply **Structured Repair (R1/R2/R3)**:
+
+2. **Pre-repair: handle `design-auditor` findings separately**. Before Structured Repair, partition design-auditor findings by `resolution_hint`:
+   - `UPDATE_CODE` → fall through to Structured Repair alongside other findings (skill fixes the code)
+   - `UPDATE_DESIGN` → skill offers to edit `design.md` directly (ONE-line edit; the user can veto). Do NOT fix the code for these. After edit, mark the finding `RESOLVED` in the ledger. If the user declines, mark `ACCEPTED_DIVERGENCE` and leave it.
+   - `ASK_USER` → pause the cycle. For each, surface the agent's "User confirmation prompt" verbatim to the user and wait for a one-word answer: `code` (fix the code) / `design` (update design.md) / `skip` (mark ACCEPTED_DIVERGENCE and continue). Route accordingly. Never pick a side on the user's behalf.
+
+   Only after all design-auditor findings have been partitioned and ASK_USER answers collected do we proceed to the next substep.
+
+3. For each remaining blocking finding, apply **Structured Repair (R1/R2/R3)**:
 
    **Phase R1 — LOCALIZE** (read-only analysis):
    - Identify the exact file, function, and line range responsible for the finding
@@ -208,17 +250,18 @@ If `cycle < max_cycles`:
    - If tests fail: try next candidate (if multiple were generated)
    - If all candidates fail: flag as "needs manual fix" and continue to next finding
 
-3. Stage and commit all successful fixes:
+4. Stage and commit all successful fixes (code edits AND any `design.md` edits from step 2):
    ```
    fix(<scope>): address review findings (cycle <cycle>)
 
    Findings fixed: F-001, F-003, F-007
    Story: STORY-<name>
    ```
-4. Push to the feature branch: `git push`
-5. Update ledger: mark fixed findings as `RESOLVED` with current cycle number. Mark unfixable findings as `OPEN (manual fix needed)`.
-6. Increment cycle: `cycle = cycle + 1`
-7. Loop back to **5a** (incremental review)
+   If only `design.md` changed, use `docs(<scope>): reconcile design.md with implementation` as the commit type instead.
+5. Push to the feature branch: `git push`
+6. Update ledger: mark fixed findings as `RESOLVED` with current cycle number. Mark unfixable findings as `OPEN (manual fix needed)`. Mark `ASK_USER` skipped items as `ACCEPTED_DIVERGENCE`.
+7. Increment cycle: `cycle = cycle + 1`
+8. Loop back to **5a** (incremental review)
 
 If `cycle >= max_cycles` (max iterations reached):
 1. Display all remaining OPEN findings with full details

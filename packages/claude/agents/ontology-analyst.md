@@ -1,7 +1,7 @@
 ---
 name: ontology-analyst
 description: "Expand an ontology stub into a complete domain model for a story — entities, relationships, state transitions, invariants — and verify internal consistency."
-model: sonnet
+model: opus
 tools:
   - Read
   - Glob

@@ -1,7 +1,7 @@
 ---
 name: hacker
 description: "Recover from a stuck loop during implementation — question every constraint, consider bypassing entirely, or solve a different problem that achieves the same goal."
-model: sonnet
+model: opus
 tools:
   - Read
   - Glob

@@ -1,7 +1,7 @@
 ---
 name: seed-architect
 description: "Transform a clarified feature description into structured, machine-verifiable story fields (GOAL, CONSTRAINTS, NON_GOALS, EVALUATION_PRINCIPLES, EXIT_CONDITIONS, ONTOLOGY)."
-model: sonnet
+model: opus
 tools:
   - Read
   - Glob

@@ -1,7 +1,7 @@
 ---
 name: ontologist
 description: "Apply the four fundamental questions (Essence, Root Cause, Prerequisites, Hidden Assumptions) to a feature request or existing story, and return pass/fail per question with concrete evidence."
-model: sonnet
+model: opus
 tools:
   - Read
   - Glob

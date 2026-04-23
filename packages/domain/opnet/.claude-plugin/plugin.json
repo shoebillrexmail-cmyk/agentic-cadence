@@ -1,0 +1,11 @@
+{
+  "name": "cadence-opnet",
+  "version": "1.0.0",
+  "description": "OPNet Bitcoin L1 domain plugin for Cadence — 17 specialist agents, 11 knowledge slices, 27 real-bug patterns, TLA+ formal verification",
+  "author": {
+    "name": "koena"
+  },
+  "repository": "https://github.com/shoebillrexmail-cmyk/agentic-cadence",
+  "license": "MIT",
+  "keywords": ["opnet", "bitcoin", "cadence", "domain-plugin", "smart-contracts", "assemblyscript"]
+}

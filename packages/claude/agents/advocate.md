@@ -1,7 +1,7 @@
 ---
 name: advocate
 description: "Argue FOR the implementation — build the strongest defensible case that findings from reviewers are incorrect, over-weighted, or should be accepted with context."
-model: sonnet
+model: opus
 tools:
   - Read
   - Glob

@@ -16,7 +16,7 @@ Surface and invert the assumptions a story depends on, then test which inversion
 ## When invoked
 
 - `cadence-story` Step 7 (after ontology gate, before finalization) — optional assumption stress test
-- `cadence-review` stage 2 (semantic) — check that implementation assumptions match story assumptions
+- `cadence-review` stage 3 (domain review) — check that implementation assumptions match story assumptions (runs when the story has a populated Assumption Stress Test section or Stage 4 triggers fire)
 - Standalone when a user asks "is this the right approach?"
 
 ## Inputs

@@ -1,7 +1,7 @@
 ---
 name: judge
 description: "Arbitrate between the advocate's defense and the reviewers' findings — produce a final ruling on each contested finding."
-model: sonnet
+model: opus
 tools:
   - Read
   - Glob
