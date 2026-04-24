@@ -26,8 +26,25 @@ Pi picks up:
 
 - [Pi coding agent](https://shittycodingagent.ai) (`@mariozechner/pi-coding-agent`)
 - Node 18+ (config parser is shipped with each skill)
-- [Obsidian](https://obsidian.md) with **Kanban** + **Tasks** community plugins
+- [Obsidian](https://obsidian.md) with the two community plugins below:
+  - **Kanban** by *mgmeyers* — renders `Sprint/Board.md` and `Product-Backlog.md` as drag-and-drop boards
+  - **Tasks** by *Clare Macrae* — interprets the `- [ ] ... 📅 YYYY-MM-DD ⏫` task syntax used inside stories and boards
 - Git + [GitHub CLI](https://cli.github.com) (`gh`) — used by `/done` for PR creation
+
+### Vault location
+
+The vault path is **not hardcoded in Pi skills**. All Pi prompts and skills use a `<Obsidian_Vaults>` placeholder that is resolved per-project from the `## Obsidian Project` block in `AGENTS.md`. You can keep your vault anywhere — `C:\Obsidian_Vaults`, `~/Obsidian_Vaults`, an iCloud folder, a synced drive, anywhere Pi can read and write.
+
+Convention: point all three fields at the same root.
+
+```markdown
+## Obsidian Project
+- Vault project: <ProjectName>
+- Sprint Board: D:/work/vault/<ProjectName>/Sprint/Board.md
+- Product Backlog: D:/work/vault/<ProjectName>/Backlog/Product-Backlog.md
+- Specs: D:/work/vault/<ProjectName>/Specs/
+- Research: D:/work/vault/<ProjectName>/Research/
+```
 
 After install, create an `AGENTS.md` at the root of any project you want cadence to manage, with at minimum:
 
