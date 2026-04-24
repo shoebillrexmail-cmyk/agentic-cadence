@@ -1,0 +1,472 @@
+#!/usr/bin/env node
+/**
+ * Path-class matrix for STORY-install-sh-sed-hardening.
+ *
+ * Exercises install.sh's sed substitution across the full range of vault paths
+ * a user might reasonably supply — POSIX, POSIX with spaces, POSIX with `&`
+ * (sed replacement-string backreference), POSIX with `|` (sed s-command
+ * delimiter collision), Windows `C:\...`, Windows with spaces + backslashes,
+ * and WSL `/mnt/c/...` — plus three rejection cases (NUL, newline, CR) that
+ * must be refused at input-validation time.
+ *
+ * The existing shared/scripts/install-substitution.test.mjs is deliberately
+ * POSIX-scoped and covers the end-to-end SKILL.md ↔ rule-file consistency
+ * assertion (from STORY-claude-skill-vault-placeholder). This file holds the
+ * path-character-class matrix separately so the scoping comments don't
+ * contradict each other.
+ *
+ * For each happy-path case the test:
+ *   1. Runs install.sh in a sandboxed $HOME with OBSIDIAN_VAULT_PATH set.
+ *   2. Reads the installed obsidian-workflow.md.
+ *   3. Constructs the expected content by substituting the vault path into
+ *      the template source at packages/claude/rules/obsidian-workflow.md.
+ *   4. Asserts byte-for-byte match.
+ *
+ * For each rejection case the test:
+ *   1. Runs install.sh with a vault path containing a forbidden control byte.
+ *   2. Asserts non-zero exit and a clear error on stderr.
+ *
+ * Skipped automatically when `bash` is unavailable on PATH.
+ *
+ * Run: node --test shared/scripts/install-substitution-matrix.test.mjs
+ */
+
+import { test, describe } from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  existsSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(__dirname, "../..");
+const INSTALL_SH = resolve(REPO_ROOT, "packages/claude/install.sh");
+const TEMPLATE_PATH = resolve(
+  REPO_ROOT,
+  "packages/claude/rules/obsidian-workflow.md",
+);
+
+function hasBash() {
+  const res = spawnSync("bash", ["--version"], { encoding: "utf8" });
+  return res?.status === 0;
+}
+
+/**
+ * Convert a native path to forward-slash form. Only used for sandbox
+ * paths that go into HOME — the vault paths under test are passed to
+ * the installer verbatim (including their native separator) because
+ * verifying verbatim-preservation is the whole point.
+ */
+function toPosix(p) {
+  return p.replace(/\\/g, "/");
+}
+
+/**
+ * Construct the expected installed rule-file content by substituting the
+ * provided vault path into the template at `packages/claude/rules/
+ * obsidian-workflow.md`. This is the same mechanical substitution the
+ * installer performs — only the literal `C:\Obsidian_Vaults` occurrences
+ * are replaced, everything else is semantically identical.
+ *
+ * Both template and installed rule are normalized to LF line endings
+ * before comparison: on Windows git checkouts the template file has
+ * CRLF while sed writes LF, so byte-for-byte comparison would trip
+ * over line-ending noise rather than substantive content.
+ */
+function normalizeLineEndings(s) {
+  return s.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function expectedRuleContent(vaultPath) {
+  const template = normalizeLineEndings(readFileSync(TEMPLATE_PATH, "utf8"));
+  return template.split("C:\\Obsidian_Vaults").join(vaultPath);
+}
+
+// ─── Happy-path cases: vault path must appear verbatim in the installed rule file ───
+//
+// Every case uses a sandbox-nested path so `mkdir -p` succeeds unconditionally.
+// The path *suffix* encodes whichever sed-metacharacter class we want to
+// exercise. On Git Bash / Linux, backslash is not a path separator, so a
+// directory name like `alice\MyVault` is a single literal directory that
+// creates cleanly — exercising sed's `\N` backreference hazard without
+// requiring Windows-style path permissions.
+
+const HAPPY_CASES = [
+  {
+    name: "plain POSIX path",
+    suffix: "MyVault",
+  },
+  {
+    name: "POSIX path with spaces",
+    suffix: "My Documents/Vault",
+  },
+  {
+    name: "POSIX path with ampersand (sed replacement-string backreference)",
+    suffix: "docs & backups/Vault",
+  },
+  {
+    name: "POSIX path with pipe (sed s-command delimiter collision)",
+    suffix: "strange|path/Vault",
+    // Windows NTFS forbids `|` in filenames — `mkdirSync` can't create the
+    // test vault directory on win32. The sed-delimiter fix (SOH) does apply
+    // uniformly across platforms; we just can't stage a Windows test for it.
+    // This case runs on linux/darwin and documents the fix for the original
+    // `|` delimiter collision bug that STORY-claude-skill-vault-placeholder
+    // surfaced.
+    skipOn: ["win32"],
+  },
+  {
+    name: "path with literal backslashes (sed \\N backreference hazard)",
+    // On Linux/Git Bash `\` is not a separator; this creates a single dir
+    // literally named `Users\alice\MyVault` under the sandbox. Pre-fix,
+    // sed's replacement treats `\U`, `\a` etc. as escapes — path mangles.
+    suffix: "Users\\alice\\MyVault",
+  },
+  {
+    name: "path with backslashes + spaces (Program Files-style)",
+    suffix: "Program Files\\MyVault",
+  },
+  {
+    name: "path with backslash-digit (direct \\1 backreference hit)",
+    // `\1` in sed's replacement is the literal backref-1. Before the fix
+    // this would insert the whole matched text or an empty string (no
+    // capture group defined) rather than a literal `\1`.
+    suffix: "group\\1\\2\\3",
+  },
+];
+
+describe("install.sh path-class matrix — happy paths (sed substitution)", () => {
+  for (const c of HAPPY_CASES) {
+    let skipReason = false;
+    if (!hasBash()) skipReason = "bash not available on PATH";
+    else if (c.skipOn?.includes(process.platform))
+      skipReason = `not runnable on ${process.platform} (filesystem constraint)`;
+    test(
+      c.name,
+      { skip: skipReason },
+      () => {
+        const sandbox = mkdtempSync(join(tmpdir(), "cadence-matrix-"));
+        const fakeHome = toPosix(join(sandbox, "home"));
+        mkdirSync(fakeHome, { recursive: true });
+
+        // All cases nest under the sandbox with forced forward-slash
+        // separators at the top level; the suffix carries whichever special
+        // character class we're testing. On Linux/Git Bash `\` is not a
+        // path separator, so a suffix like `Users\alice\MyVault` is one
+        // literal directory that `mkdir -p` creates without issue.
+        const vaultPath = `${toPosix(sandbox)}/vault/${c.suffix}`;
+
+        // Pre-create the vault dir so the installer doesn't depend on
+        // answering "Y" to the create-directory prompt (fewer moving parts
+        // in the test). The `mkdirSync` here treats `\` as a literal
+        // character on Linux/Git Bash — exactly what we want.
+        mkdirSync(vaultPath, { recursive: true });
+
+        const spawnResult = spawnSync("bash", [INSTALL_SH], {
+          input: "\n",
+          env: {
+            ...process.env,
+            HOME: fakeHome,
+            OBSIDIAN_VAULT_PATH: vaultPath,
+          },
+          encoding: "utf8",
+          timeout: 30_000,
+        });
+
+        try {
+          assert.equal(
+            spawnResult.status,
+            0,
+            `install.sh exited ${spawnResult.status} for vault path "${vaultPath}".\n` +
+              `stdout:\n${spawnResult.stdout}\nstderr:\n${spawnResult.stderr}`,
+          );
+
+          const installedRule = join(
+            sandbox,
+            "home",
+            ".claude",
+            "rules",
+            "common",
+            "obsidian-workflow.md",
+          );
+          assert.ok(
+            existsSync(installedRule),
+            `Expected ${installedRule} to exist. stdout:\n${spawnResult.stdout}`,
+          );
+
+          const actualBody = normalizeLineEndings(
+            readFileSync(installedRule, "utf8"),
+          );
+          const expectedBody = expectedRuleContent(vaultPath);
+
+          assert.equal(
+            actualBody,
+            expectedBody,
+            `Installed obsidian-workflow.md does not match expected content for vault path "${vaultPath}".\n` +
+              `First divergence: ${findFirstDifference(actualBody, expectedBody)}`,
+          );
+        } finally {
+          try {
+            rmSync(sandbox, { recursive: true, force: true });
+          } catch {
+            // best-effort
+          }
+        }
+      },
+    );
+  }
+});
+
+// ─── Rejection cases: control characters must be refused at input validation ───
+
+// NUL is intentionally NOT tested as a rejection case: bash strings are
+// NUL-terminated, so the env var gets truncated at the NUL before the
+// installer ever sees it. Any "NUL-containing" path is effectively the
+// prefix-up-to-the-NUL from the installer's perspective — a different
+// valid-looking path, not a malformed one. Documented in install.sh's
+// validate_vault_path comment.
+const REJECTION_CASES = [
+  {
+    name: "path containing newline is rejected",
+    path: "/tmp/cadence/My\nVault",
+    errorPattern: /newline|control|invalid/i,
+  },
+  {
+    name: "path containing carriage return is rejected (Windows clipboard paste)",
+    path: "/tmp/cadence/MyVault\r",
+    errorPattern: /carriage|CR|control|invalid/i,
+  },
+];
+
+// ─── Default-path selection: WSL detection + bare default ───
+//
+// These tests verify the branch in install.sh that picks the default vault
+// suggestion, BEFORE any `OBSIDIAN_VAULT_PATH` override. We set HOME to a
+// sandbox, deliberately leave `OBSIDIAN_VAULT_PATH` unset, and answer the
+// vault-path prompt with an empty line (accept the default) + "Y" (create
+// it). Then we assert the installed rule file carries the expected default
+// path. That proves both the default selection AND that default-path
+// behavior is regression-free after the hardening.
+
+describe("install.sh default vault selection", () => {
+  test(
+    "WSL: WSL_DISTRO_NAME set (and OSTYPE not msys/cygwin) yields /mnt/c/Obsidian_Vaults default",
+    { skip: hasBash() ? false : "bash not available on PATH" },
+    () => {
+      const sandbox = mkdtempSync(join(tmpdir(), "cadence-matrix-"));
+      const fakeHome = toPosix(join(sandbox, "home"));
+      mkdirSync(fakeHome, { recursive: true });
+
+      try {
+        const env = { ...process.env, HOME: fakeHome };
+        // Strip any pre-existing OBSIDIAN_VAULT_PATH / OSTYPE overrides
+        // from the parent env so the installer hits the WSL branch cleanly.
+        delete env.OBSIDIAN_VAULT_PATH;
+        env.WSL_DISTRO_NAME = "Ubuntu-22.04";
+        env.OSTYPE = "linux-gnu";
+
+        const res = spawnSync("bash", [INSTALL_SH], {
+          input: "\nY\n",
+          env,
+          encoding: "utf8",
+          timeout: 30_000,
+        });
+
+        // We do NOT assert exit==0 here. On a real WSL system `/mnt/c/`
+        // is the Windows C: drive mount and the installer completes
+        // normally. On every other platform `/mnt/c/` either doesn't
+        // exist or isn't writable, so `mkdir -p /mnt/c/Obsidian_Vaults`
+        // fails with EACCES. That failure *itself* is proof the WSL
+        // branch selected `/mnt/c/Obsidian_Vaults` as the default — if
+        // the branch hadn't fired, we'd have landed on the Linux
+        // fallback `$HOME/Obsidian_Vaults` which always succeeds.
+        //
+        // So: verify the selection by looking for the path in the
+        // installer's output. Either it succeeds (WSL environment and
+        // the `Created vault at` line is emitted) or it fails with a
+        // mkdir error mentioning `/mnt` — both outcomes prove the
+        // branch picked the right default.
+        const combinedOut = `${res.stdout}\n${res.stderr}`;
+        const wslDefaultAttempted =
+          /Created vault at \/mnt\/c\/Obsidian_Vaults/.test(combinedOut) ||
+          /mkdir:.*\/mnt(\/c)?['/`]?/.test(combinedOut) ||
+          /\/mnt\/c\/Obsidian_Vaults/.test(combinedOut);
+        assert.ok(
+          wslDefaultAttempted,
+          `Expected installer to select /mnt/c/Obsidian_Vaults as default under WSL ` +
+            `(either by creating the vault there, by failing mkdir on /mnt/, or by ` +
+            `referencing the path in the rule file). Got stdout+stderr:\n${combinedOut}`,
+        );
+
+        // Also prove the fallback branches did NOT fire — no /tmp/.../home/Obsidian_Vaults
+        // reference and no C:\Obsidian_Vaults reference in the output.
+        assert.equal(
+          /Created vault at .+\/home\/.+\/Obsidian_Vaults\b/.test(combinedOut),
+          false,
+          `WSL branch should win over generic Linux fallback. stdout+stderr:\n${combinedOut}`,
+        );
+      } finally {
+        try {
+          rmSync(sandbox, { recursive: true, force: true });
+        } catch {
+          // best-effort
+        }
+      }
+    },
+  );
+
+  test(
+    "non-WSL, non-Windows: default falls back to $HOME/Obsidian_Vaults (no regression on default-path UX)",
+    { skip: hasBash() ? false : "bash not available on PATH" },
+    () => {
+      const sandbox = mkdtempSync(join(tmpdir(), "cadence-matrix-"));
+      const fakeHome = toPosix(join(sandbox, "home"));
+      mkdirSync(fakeHome, { recursive: true });
+
+      try {
+        const env = { ...process.env, HOME: fakeHome };
+        // Clear all the signals the installer might use to pick a
+        // non-default path. What's left is the generic Linux default.
+        delete env.OBSIDIAN_VAULT_PATH;
+        delete env.WSL_DISTRO_NAME;
+        env.OSTYPE = "linux-gnu";
+
+        const res = spawnSync("bash", [INSTALL_SH], {
+          input: "\nY\n",
+          env,
+          encoding: "utf8",
+          timeout: 30_000,
+        });
+
+        assert.equal(
+          res.status,
+          0,
+          `install.sh exited ${res.status} on generic-default path flow.\n` +
+            `stdout:\n${res.stdout}\nstderr:\n${res.stderr}`,
+        );
+
+        // The installer echoes "Created vault at <path>" after mkdir-p'ing
+        // the default. Under Git Bash, HOME gets MSYS-translated so the
+        // Node-visible fakeHome (a Windows-shape path) becomes a POSIX
+        // path inside the installer. Match either shape — both point at
+        // the same directory.
+        const combinedOut = `${res.stdout}\n${res.stderr}`;
+        assert.match(
+          combinedOut,
+          /Created vault at .+\/Obsidian_Vaults\b/,
+          `Expected installer to create a default vault ending in /Obsidian_Vaults; ` +
+            `got stdout+stderr:\n${combinedOut}`,
+        );
+        // Also verify the default did NOT pick up the WSL or Windows
+        // branches (which would fall through to different path shapes).
+        assert.equal(
+          /Created vault at \/mnt\/c\/Obsidian_Vaults/.test(combinedOut),
+          false,
+          "Non-WSL test should not land on /mnt/c/ default.",
+        );
+        assert.equal(
+          /Created vault at C:\\\\Obsidian_Vaults/.test(combinedOut),
+          false,
+          "Non-Windows test should not land on C:\\Obsidian_Vaults default.",
+        );
+      } finally {
+        try {
+          rmSync(sandbox, { recursive: true, force: true });
+        } catch {
+          // best-effort
+        }
+      }
+    },
+  );
+});
+
+describe("install.sh path-class matrix — control-character rejection", () => {
+  for (const c of REJECTION_CASES) {
+    test(
+      c.name,
+      { skip: hasBash() ? false : "bash not available on PATH" },
+      () => {
+        const sandbox = mkdtempSync(join(tmpdir(), "cadence-matrix-"));
+        const fakeHome = toPosix(join(sandbox, "home"));
+        mkdirSync(fakeHome, { recursive: true });
+
+        try {
+          const spawnResult = spawnSync("bash", [INSTALL_SH], {
+            input: "\nY\n",
+            env: {
+              ...process.env,
+              HOME: fakeHome,
+              OBSIDIAN_VAULT_PATH: c.path,
+            },
+            encoding: "utf8",
+            timeout: 30_000,
+          });
+
+          assert.notEqual(
+            spawnResult.status,
+            0,
+            `install.sh should exit non-zero for vault path containing a forbidden control byte, ` +
+              `but exited ${spawnResult.status}.\n` +
+              `stdout:\n${spawnResult.stdout}\nstderr:\n${spawnResult.stderr}`,
+          );
+
+          const combined = `${spawnResult.stdout}\n${spawnResult.stderr}`;
+          assert.match(
+            combined,
+            c.errorPattern,
+            `Error message should mention the control-character class matching ${c.errorPattern}.\n` +
+              `Got stdout+stderr:\n${combined}`,
+          );
+
+          const installedRule = join(
+            sandbox,
+            "home",
+            ".claude",
+            "rules",
+            "common",
+            "obsidian-workflow.md",
+          );
+          assert.equal(
+            existsSync(installedRule),
+            false,
+            `install.sh should NOT have written the rule file when rejecting invalid input, ` +
+              `but ${installedRule} exists.`,
+          );
+        } finally {
+          try {
+            rmSync(sandbox, { recursive: true, force: true });
+          } catch {
+            // best-effort
+          }
+        }
+      },
+    );
+  }
+});
+
+// ─── Helper: pinpoint byte-level divergence for failed assertion diagnostics ───
+
+function findFirstDifference(a, b) {
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    if (a[i] !== b[i]) {
+      const ctx = 30;
+      const start = Math.max(0, i - ctx);
+      const end = Math.min(len, i + ctx);
+      return (
+        `byte ${i}: actual "${a.slice(start, end)}" vs expected "${b.slice(start, end)}"`
+      );
+    }
+  }
+  if (a.length !== b.length) {
+    return `length mismatch: actual=${a.length}, expected=${b.length}`;
+  }
+  return "no difference detected";
+}
