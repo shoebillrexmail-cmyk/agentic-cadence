@@ -114,6 +114,13 @@ const HAPPY_CASES = [
   {
     name: "POSIX path with pipe (sed s-command delimiter collision)",
     suffix: "strange|path/Vault",
+    // Windows NTFS forbids `|` in filenames — `mkdirSync` can't create the
+    // test vault directory on win32. The sed-delimiter fix (SOH) does apply
+    // uniformly across platforms; we just can't stage a Windows test for it.
+    // This case runs on linux/darwin and documents the fix for the original
+    // `|` delimiter collision bug that STORY-claude-skill-vault-placeholder
+    // surfaced.
+    skipOn: ["win32"],
   },
   {
     name: "path with literal backslashes (sed \\N backreference hazard)",
@@ -137,9 +144,13 @@ const HAPPY_CASES = [
 
 describe("install.sh path-class matrix — happy paths (sed substitution)", () => {
   for (const c of HAPPY_CASES) {
+    let skipReason = false;
+    if (!hasBash()) skipReason = "bash not available on PATH";
+    else if (c.skipOn?.includes(process.platform))
+      skipReason = `not runnable on ${process.platform} (filesystem constraint)`;
     test(
       c.name,
-      { skip: hasBash() ? false : "bash not available on PATH" },
+      { skip: skipReason },
       () => {
         const sandbox = mkdtempSync(join(tmpdir(), "cadence-matrix-"));
         const fakeHome = toPosix(join(sandbox, "home"));
@@ -215,12 +226,13 @@ describe("install.sh path-class matrix — happy paths (sed substitution)", () =
 
 // ─── Rejection cases: control characters must be refused at input validation ───
 
+// NUL is intentionally NOT tested as a rejection case: bash strings are
+// NUL-terminated, so the env var gets truncated at the NUL before the
+// installer ever sees it. Any "NUL-containing" path is effectively the
+// prefix-up-to-the-NUL from the installer's perspective — a different
+// valid-looking path, not a malformed one. Documented in install.sh's
+// validate_vault_path comment.
 const REJECTION_CASES = [
-  {
-    name: "path containing NUL is rejected",
-    path: "/tmp/cadence/My\x00Vault",
-    errorPattern: /NUL|null|control|invalid/i,
-  },
   {
     name: "path containing newline is rejected",
     path: "/tmp/cadence/My\nVault",
