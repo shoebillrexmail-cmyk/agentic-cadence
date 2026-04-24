@@ -67,9 +67,13 @@ describe("Claude SKILL.md literal removal", () => {
   }
 
   test("no other Claude SKILL.md contains the literal either", () => {
+    // Sort the skill list before iterating so the offenders list (and any
+    // resulting error message) is deterministic across filesystems —
+    // `readdirSync` order is not guaranteed by POSIX.
     const allSkills = readdirSync(CLAUDE_SKILLS_DIR, { withFileTypes: true })
       .filter((d) => d.isDirectory())
-      .map((d) => d.name);
+      .map((d) => d.name)
+      .sort();
     const offenders = [];
     for (const name of allSkills) {
       try {
