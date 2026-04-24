@@ -91,7 +91,7 @@ Catalog of learnings from this project. Updated automatically by `/cadence:done`
 - [ ] TBD
 ```
 
-**Also check the shared `_Knowledge/` structure** at `C:\Obsidian_Vaults\_Knowledge\`:
+**Also check the shared `_Knowledge/` structure** at `<Obsidian_Vaults>/_Knowledge/`:
 
 ```
 _Knowledge/

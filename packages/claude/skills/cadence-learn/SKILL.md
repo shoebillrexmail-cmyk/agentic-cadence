@@ -23,7 +23,7 @@ This skill is triggered automatically by `/cadence:done` after a story moves to 
    - Review findings (if `/cadence:review` ran) — what was caught and fixed
    - Specialist feedback captured in the story
 6. Read existing sources to check for related prior learnings:
-   - `C:\Obsidian_Vaults\_Knowledge\Index.md` — shared knowledge base
+   - `<Obsidian_Vaults>/_Knowledge/Index.md` — shared knowledge base
    - Project's `Learning/Index.md` — project-specific learnings
 
 ## Step 2: Assess What Was Learned
@@ -412,7 +412,7 @@ Generated {N} learning documents:
 - GUIDE-<name>: [title] — [one-line summary]
 - WRITEUP-<name>: [title] — [one-line summary]
 
-Cross-cutting entries are in C:\Obsidian_Vaults\_Knowledge\.
+Cross-cutting entries are in <Obsidian_Vaults>/_Knowledge/.
 Project entries are in your project's Learning/ folder.
 ```
 

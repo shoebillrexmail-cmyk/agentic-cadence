@@ -76,7 +76,7 @@ Check TWO sources for relevant knowledge: the shared `_Knowledge/` base and the 
 
 ### 4a: Shared Knowledge Base (`_Knowledge/`)
 
-1. Read `C:\Obsidian_Vaults\_Knowledge\Index.md` to scan the cross-project catalog
+1. Read `<Obsidian_Vaults>/_Knowledge/Index.md` to scan the cross-project catalog
 2. Identify the story's domains (from specialist context or project type detection)
 3. Read entries under matching domain sections, prioritizing by severity:
    - **Critical/High** entries matching this story's domain — ALWAYS include in brief

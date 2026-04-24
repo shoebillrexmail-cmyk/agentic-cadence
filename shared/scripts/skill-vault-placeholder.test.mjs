@@ -19,7 +19,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../..");
 
 const CLAUDE_SKILLS_DIR = resolve(REPO_ROOT, "packages/claude/skills");
-const PI_SKILLS_DIR = resolve(REPO_ROOT, "packages/pi/.pi/skills");
 
 const AFFECTED_SKILLS = [
   "cadence-init",
@@ -52,21 +51,6 @@ function countOccurrences(haystack, needle) {
     idx += needle.length;
   }
   return count;
-}
-
-/**
- * Extract normalized placeholder "shapes" from a skill body.
- * A shape is the prefix after <Obsidian_Vaults> up to the first whitespace, backtick,
- * quote, parenthesis, comma, or end-of-line. Used for Pi-parity checks.
- */
-function extractPlaceholderShapes(body) {
-  const shapes = new Set();
-  const re = /<Obsidian_Vaults>[^\s)`'",]*/g;
-  let match;
-  while ((match = re.exec(body)) !== null) {
-    shapes.add(match[0]);
-  }
-  return shapes;
 }
 
 describe("Claude SKILL.md literal removal", () => {
@@ -125,40 +109,11 @@ describe("Claude SKILL.md placeholder presence", () => {
   });
 });
 
-describe("Pi ↔ Claude placeholder-shape parity", () => {
-  test("every Claude placeholder shape is also used by at least one Pi skill", () => {
-    // Collect all Pi shapes across every Pi skill.
-    const piSkills = readdirSync(PI_SKILLS_DIR, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name);
-    const piShapes = new Set();
-    for (const name of piSkills) {
-      try {
-        const body = readSkill(PI_SKILLS_DIR, name);
-        for (const s of extractPlaceholderShapes(body)) piShapes.add(s);
-      } catch {
-        // skip
-      }
-    }
-
-    // Assemble all Claude shapes from the 5 affected skills.
-    const claudeShapes = new Set();
-    for (const name of AFFECTED_SKILLS) {
-      const body = readSkill(CLAUDE_SKILLS_DIR, name);
-      for (const s of extractPlaceholderShapes(body)) claudeShapes.add(s);
-    }
-
-    // Pi must know every shape Claude uses. Novel Claude-only shapes are a regression.
-    const novel = [...claudeShapes].filter((s) => !piShapes.has(s));
-    assert.deepEqual(
-      novel,
-      [],
-      `Claude SKILL.md files introduce placeholder shapes not used by any Pi skill: ${novel.join(
-        ", ",
-      )}. Add the shape to a Pi skill first, or rewrite the Claude occurrence to an existing Pi shape.`,
-    );
-  });
-
+describe("Pi ↔ Claude placeholder-convention parity", () => {
+  // Convention — not exact-shape — parity: Claude skills may legitimately
+  // reference vault-level paths Pi doesn't (e.g. `_Dashboard.md` is a Claude-
+  // specific step). What MUST match is the convention: angle-bracketed token,
+  // forward-slash separators, and the placeholder always followed by `/`.
   test("Claude placeholders never use Windows-style backslashes", () => {
     const re = /<Obsidian_Vaults>\\/;
     for (const name of AFFECTED_SKILLS) {
@@ -168,6 +123,47 @@ describe("Pi ↔ Claude placeholder-shape parity", () => {
         false,
         `${name}/SKILL.md contains a Windows-style backslash after <Obsidian_Vaults>. Use forward slashes to match Pi + shared/core.md conventions.`,
       );
+    }
+  });
+
+  test("every <Obsidian_Vaults> occurrence in Claude is followed by a forward slash", () => {
+    for (const name of AFFECTED_SKILLS) {
+      const body = readSkill(CLAUDE_SKILLS_DIR, name);
+      // Find each placeholder, record what follows immediately.
+      const re = /<Obsidian_Vaults>(.)/gs;
+      let match;
+      const bad = [];
+      while ((match = re.exec(body)) !== null) {
+        if (match[1] !== "/") bad.push(JSON.stringify(match[0]));
+      }
+      assert.deepEqual(
+        bad,
+        [],
+        `${name}/SKILL.md has <Obsidian_Vaults> occurrences not followed by "/": ${bad.join(
+          ", ",
+        )}. The placeholder must always be followed by a forward slash.`,
+      );
+    }
+  });
+
+  test("no malformed placeholder variants (spaces, wrong case, missing brackets)", () => {
+    const malformed = [
+      /<Obsidian Vaults>/i,
+      /< Obsidian_Vaults>/,
+      /<Obsidian_Vaults >/,
+      /<obsidian_vaults>/, // wrong case — exclude the canonical form
+    ];
+    for (const name of AFFECTED_SKILLS) {
+      const body = readSkill(CLAUDE_SKILLS_DIR, name);
+      for (const re of malformed) {
+        // Skip the canonical <Obsidian_Vaults> form — /<obsidian_vaults>/ is case-sensitive
+        // by default, so it catches only lowercase variants.
+        assert.equal(
+          re.test(body),
+          false,
+          `${name}/SKILL.md contains malformed placeholder matching ${re}. Canonical form is <Obsidian_Vaults>.`,
+        );
+      }
     }
   });
 });

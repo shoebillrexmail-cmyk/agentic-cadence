@@ -6,7 +6,7 @@ Initialize the workflow for a project. Argument: "$ARGUMENTS" is the project nam
 
 If no argument, ask for the project name.
 
-1. **Create vault structure** at `C:\Obsidian_Vaults\<ProjectName>\`:
+1. **Create vault structure** at `<Obsidian_Vaults>/<ProjectName>/`:
    ```
    <ProjectName>/
    ├── Roadmap.md
@@ -56,13 +56,13 @@ If no argument, ask for the project name.
    ```markdown
    ## Obsidian Project
    - Vault project: <ProjectName>
-   - Sprint Board: C:\Obsidian_Vaults\<ProjectName>\Sprint\Board.md
-   - Product Backlog: C:\Obsidian_Vaults\<ProjectName>\Backlog\Product-Backlog.md
-   - Specs: C:\Obsidian_Vaults\<ProjectName>\Specs\
-   - Research: C:\Obsidian_Vaults\<ProjectName>\Research\
+   - Sprint Board: <Obsidian_Vaults>/<ProjectName>/Sprint/Board.md
+   - Product Backlog: <Obsidian_Vaults>/<ProjectName>/Backlog/Product-Backlog.md
+   - Specs: <Obsidian_Vaults>/<ProjectName>/Specs/
+   - Research: <Obsidian_Vaults>/<ProjectName>/Research/
    ```
 
-6. **Ensure shared `_Knowledge/` structure exists** at `C:\Obsidian_Vaults\_Knowledge\`:
+6. **Ensure shared `_Knowledge/` structure exists** at `<Obsidian_Vaults>/_Knowledge/`:
    - If the `_Knowledge/` directory doesn't exist, create it with:
      ```
      _Knowledge/
@@ -76,6 +76,6 @@ If no argument, ask for the project name.
    - If `_Knowledge/` already exists, skip (never overwrite existing content)
    - This is vault-level (not project-level) — shared across all projects
 
-7. **Update Dashboard** at `C:\Obsidian_Vaults\_Dashboard.md` with the new project
+7. **Update Dashboard** at `<Obsidian_Vaults>/_Dashboard.md` with the new project
 
 8. Report: "Workflow initialized for <ProjectName>. Open your vault in Obsidian to see the boards."
