@@ -55,7 +55,7 @@ Complete the current story and create a pull request.
 9. **Learning extraction**: Run `/cadence:learn` to extract learnings from the completed story:
    - Analyzes what changed, what was caught in review, what specialist feedback was key
    - Classifies each learning as **cross-cutting** or **project-specific**:
-     - **Cross-cutting** (applies to any project using this tech) → saved to `C:\Obsidian_Vaults\_Knowledge\` (Gotchas/, Patterns/, Guides/, Writeups/)
+     - **Cross-cutting** (applies to any project using this tech) → saved to `<Obsidian_Vaults>/_Knowledge/` (Gotchas/, Patterns/, Guides/, Writeups/)
      - **Project-specific** (only relevant to this codebase) → saved to the project's `Learning/` folder
    - Generates learning documents:
      - **Gotchas** — concrete "don't do X because Y" entries (usually cross-cutting)

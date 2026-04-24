@@ -36,8 +36,21 @@ Or publish via the [plugin marketplace](../.claude-plugin/marketplace.json).
 
 - [Claude Code](https://code.claude.com) CLI
 - Node 18+ (the config parser is shipped with each skill)
-- [Obsidian](https://obsidian.md) with **Kanban** + **Tasks** community plugins
+- [Obsidian](https://obsidian.md) with the two community plugins below:
+  - **Kanban** by *mgmeyers* — renders `Sprint/Board.md` and `Product-Backlog.md` as boards (`/cadence:board`, `/cadence:sprint`, `/cadence:pickup` all write Kanban-plugin markdown)
+  - **Tasks** by *Clare Macrae* — interprets the `- [ ] ... 📅 YYYY-MM-DD ⏫` syntax emitted inside stories and on boards
 - Git + [GitHub CLI](https://cli.github.com) (`gh`) — used by `/cadence:done` for PR creation
+
+### Vault location
+
+The vault path is **not hardcoded** — `install.sh` asks for it and defaults to `C:\Obsidian_Vaults` on Windows or `~/Obsidian_Vaults` elsewhere. Override non-interactively by exporting `OBSIDIAN_VAULT_PATH` before running the installer.
+
+The installer rewrites the path into `~/.claude/rules/common/obsidian-workflow.md`. Skills reference the vault root via the `<Obsidian_Vaults>` placeholder and resolve it from that rule file at runtime. Each project's own `CLAUDE.md` then records absolute paths under `## Obsidian Project` — that's what skills read for project-scoped files.
+
+Two things must line up for skills to reach the vault:
+
+1. `~/.claude/settings.json` → `permissions.additionalDirectories` must include the vault path (the installer prints the exact JSON snippet if missing).
+2. Each project's `CLAUDE.md` has an `## Obsidian Project` block pointing at `<vault>/<ProjectName>/Sprint/Board.md` etc.
 
 ---
 
