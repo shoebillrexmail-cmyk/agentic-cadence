@@ -179,8 +179,22 @@ npm test                   # Config parser tests (26 cases)
 Prerequisites:
 - Node 18+
 - Git + GitHub CLI (`gh`) — used by `/cadence:done` for PR creation
-- [Obsidian](https://obsidian.md) with **Kanban** + **Tasks** plugins — for the vault UI
+- [Obsidian](https://obsidian.md) with the two community plugins below (enable after opening the vault):
+  - **Kanban** by *mgmeyers* — renders `Sprint/Board.md` and `Product-Backlog.md` as drag-and-drop boards
+  - **Tasks** by *Clare Macrae* — powers the `- [ ] ... 📅 YYYY-MM-DD ⏫` task syntax used inside stories and boards
 - One of: [Claude Code](https://code.claude.com) or [Pi](https://shittycodingagent.ai)
+
+### Vault location — is it fixed?
+
+**No, the vault location is configurable.** Nothing in the framework *requires* `C:\Obsidian_Vaults` specifically; it's just the Windows default.
+
+How the path is resolved, in priority order:
+
+1. **Per-project context file** — each project's `CLAUDE.md` (Claude) or `AGENTS.md` (Pi) has an `## Obsidian Project` block with absolute paths to `Sprint/Board.md`, `Backlog/Product-Backlog.md`, etc. Skills read these first.
+2. **Installer prompt** — `packages/claude/install.sh` asks for the vault path and rewrites `obsidian-workflow.md` to match. Set `OBSIDIAN_VAULT_PATH` to skip the prompt in scripted installs.
+3. **Default** — `C:\Obsidian_Vaults` on Windows, `~/Obsidian_Vaults` elsewhere.
+
+Claude also needs the chosen path added to `permissions.additionalDirectories` in `~/.claude/settings.json` so skills can read/write the vault. Both Claude skills and Pi skills use a `<Obsidian_Vaults>` placeholder internally, resolved at runtime from the installer-rewritten rule file (Claude) or from `AGENTS.md` (Pi).
 
 ### Adding a convention
 
