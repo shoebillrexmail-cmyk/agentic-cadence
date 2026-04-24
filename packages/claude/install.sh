@@ -111,8 +111,11 @@ mkdir -p "$RULES_DIR"
 # Update vault path in rules before copying. Uses SOH (\x01) as the sed
 # delimiter to avoid any delimiter collision with user-supplied paths,
 # and escapes \, &, and the delimiter in the replacement string.
+# The SED_EXPR assignment keeps the quoting consolidated in one place so
+# future maintainers aren't tempted to rewrap the three-word concatenation.
 ESCAPED_VAULT="$(escape_sed_replacement "$VAULT_PATH")"
-sed $'s\x01C:\\\\Obsidian_Vaults\x01'"${ESCAPED_VAULT}"$'\x01g' \
+SED_EXPR=$'s\x01C:\\\\Obsidian_Vaults\x01'"${ESCAPED_VAULT}"$'\x01g'
+sed "$SED_EXPR" \
     "${SCRIPT_DIR}/rules/obsidian-workflow.md" > "${RULES_DIR}/obsidian-workflow.md"
 cp "${SCRIPT_DIR}/rules/git-workflow.md" "${RULES_DIR}/git-workflow.md"
 
@@ -122,11 +125,26 @@ info "Installed workflow rules to ${RULES_DIR}/"
 TEMPLATES_DIR="${VAULT_PATH}/_Templates"
 mkdir -p "$TEMPLATES_DIR"
 
+# Enable nullglob so an empty or missing templates dir doesn't make the
+# glob expand to its literal pattern string (which would then be passed
+# to `cp` and crash the installer under `set -e` with an opaque error).
+shopt -s nullglob
+template_count=0
 for tmpl in "${MONOREPO_ROOT}"/shared/templates/vault/*.md; do
     cp "$tmpl" "${TEMPLATES_DIR}/$(basename "$tmpl")"
+    # Avoid `((template_count++))` — the post-increment form returns the OLD
+    # value as exit status, which is 0 on the first iteration, which bash
+    # interprets as "expression evaluated to zero" → exit status 1 → `set -e`
+    # aborts the script. Classic bash arithmetic-expansion gotcha.
+    template_count=$((template_count + 1))
 done
+shopt -u nullglob
 
-info "Installed vault templates to ${TEMPLATES_DIR}/"
+if [[ "$template_count" -eq 0 ]]; then
+    warn "No vault templates found at ${MONOREPO_ROOT}/shared/templates/vault/ — did you forget to run 'npm run build'?"
+else
+    info "Installed vault templates to ${TEMPLATES_DIR}/ (${template_count} files)"
+fi
 
 # ── Step 4: Create dashboard if missing ──────────────
 DASHBOARD="${VAULT_PATH}/_Dashboard.md"

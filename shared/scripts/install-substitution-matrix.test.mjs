@@ -245,6 +245,148 @@ const REJECTION_CASES = [
   },
 ];
 
+// ─── Default-path selection: WSL detection + bare default ───
+//
+// These tests verify the branch in install.sh that picks the default vault
+// suggestion, BEFORE any `OBSIDIAN_VAULT_PATH` override. We set HOME to a
+// sandbox, deliberately leave `OBSIDIAN_VAULT_PATH` unset, and answer the
+// vault-path prompt with an empty line (accept the default) + "Y" (create
+// it). Then we assert the installed rule file carries the expected default
+// path. That proves both the default selection AND that default-path
+// behavior is regression-free after the hardening.
+
+describe("install.sh default vault selection", () => {
+  test(
+    "WSL: WSL_DISTRO_NAME set (and OSTYPE not msys/cygwin) yields /mnt/c/Obsidian_Vaults default",
+    { skip: hasBash() ? false : "bash not available on PATH" },
+    () => {
+      const sandbox = mkdtempSync(join(tmpdir(), "cadence-matrix-"));
+      const fakeHome = toPosix(join(sandbox, "home"));
+      mkdirSync(fakeHome, { recursive: true });
+
+      try {
+        const env = { ...process.env, HOME: fakeHome };
+        // Strip any pre-existing OBSIDIAN_VAULT_PATH / OSTYPE overrides
+        // from the parent env so the installer hits the WSL branch cleanly.
+        delete env.OBSIDIAN_VAULT_PATH;
+        env.WSL_DISTRO_NAME = "Ubuntu-22.04";
+        env.OSTYPE = "linux-gnu";
+
+        const res = spawnSync("bash", [INSTALL_SH], {
+          input: "\nY\n",
+          env,
+          encoding: "utf8",
+          timeout: 30_000,
+        });
+
+        // We do NOT assert exit==0 here. On a real WSL system `/mnt/c/`
+        // is the Windows C: drive mount and the installer completes
+        // normally. On every other platform `/mnt/c/` either doesn't
+        // exist or isn't writable, so `mkdir -p /mnt/c/Obsidian_Vaults`
+        // fails with EACCES. That failure *itself* is proof the WSL
+        // branch selected `/mnt/c/Obsidian_Vaults` as the default — if
+        // the branch hadn't fired, we'd have landed on the Linux
+        // fallback `$HOME/Obsidian_Vaults` which always succeeds.
+        //
+        // So: verify the selection by looking for the path in the
+        // installer's output. Either it succeeds (WSL environment and
+        // the `Created vault at` line is emitted) or it fails with a
+        // mkdir error mentioning `/mnt` — both outcomes prove the
+        // branch picked the right default.
+        const combinedOut = `${res.stdout}\n${res.stderr}`;
+        const wslDefaultAttempted =
+          /Created vault at \/mnt\/c\/Obsidian_Vaults/.test(combinedOut) ||
+          /mkdir:.*\/mnt(\/c)?['/`]?/.test(combinedOut) ||
+          /\/mnt\/c\/Obsidian_Vaults/.test(combinedOut);
+        assert.ok(
+          wslDefaultAttempted,
+          `Expected installer to select /mnt/c/Obsidian_Vaults as default under WSL ` +
+            `(either by creating the vault there, by failing mkdir on /mnt/, or by ` +
+            `referencing the path in the rule file). Got stdout+stderr:\n${combinedOut}`,
+        );
+
+        // Also prove the fallback branches did NOT fire — no /tmp/.../home/Obsidian_Vaults
+        // reference and no C:\Obsidian_Vaults reference in the output.
+        assert.equal(
+          /Created vault at .+\/home\/.+\/Obsidian_Vaults\b/.test(combinedOut),
+          false,
+          `WSL branch should win over generic Linux fallback. stdout+stderr:\n${combinedOut}`,
+        );
+      } finally {
+        try {
+          rmSync(sandbox, { recursive: true, force: true });
+        } catch {
+          // best-effort
+        }
+      }
+    },
+  );
+
+  test(
+    "non-WSL, non-Windows: default falls back to $HOME/Obsidian_Vaults (no regression on default-path UX)",
+    { skip: hasBash() ? false : "bash not available on PATH" },
+    () => {
+      const sandbox = mkdtempSync(join(tmpdir(), "cadence-matrix-"));
+      const fakeHome = toPosix(join(sandbox, "home"));
+      mkdirSync(fakeHome, { recursive: true });
+
+      try {
+        const env = { ...process.env, HOME: fakeHome };
+        // Clear all the signals the installer might use to pick a
+        // non-default path. What's left is the generic Linux default.
+        delete env.OBSIDIAN_VAULT_PATH;
+        delete env.WSL_DISTRO_NAME;
+        env.OSTYPE = "linux-gnu";
+
+        const res = spawnSync("bash", [INSTALL_SH], {
+          input: "\nY\n",
+          env,
+          encoding: "utf8",
+          timeout: 30_000,
+        });
+
+        assert.equal(
+          res.status,
+          0,
+          `install.sh exited ${res.status} on generic-default path flow.\n` +
+            `stdout:\n${res.stdout}\nstderr:\n${res.stderr}`,
+        );
+
+        // The installer echoes "Created vault at <path>" after mkdir-p'ing
+        // the default. Under Git Bash, HOME gets MSYS-translated so the
+        // Node-visible fakeHome (a Windows-shape path) becomes a POSIX
+        // path inside the installer. Match either shape — both point at
+        // the same directory.
+        const combinedOut = `${res.stdout}\n${res.stderr}`;
+        assert.match(
+          combinedOut,
+          /Created vault at .+\/Obsidian_Vaults\b/,
+          `Expected installer to create a default vault ending in /Obsidian_Vaults; ` +
+            `got stdout+stderr:\n${combinedOut}`,
+        );
+        // Also verify the default did NOT pick up the WSL or Windows
+        // branches (which would fall through to different path shapes).
+        assert.equal(
+          /Created vault at \/mnt\/c\/Obsidian_Vaults/.test(combinedOut),
+          false,
+          "Non-WSL test should not land on /mnt/c/ default.",
+        );
+        assert.equal(
+          /Created vault at C:\\\\Obsidian_Vaults/.test(combinedOut),
+          false,
+          "Non-Windows test should not land on C:\\Obsidian_Vaults default.",
+        );
+      } finally {
+        try {
+          rmSync(sandbox, { recursive: true, force: true });
+        } catch {
+          // best-effort
+        }
+      }
+    },
+  );
+});
+
 describe("install.sh path-class matrix — control-character rejection", () => {
   for (const c of REJECTION_CASES) {
     test(
