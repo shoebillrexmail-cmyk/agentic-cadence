@@ -67,12 +67,35 @@ If missing (legacy story), auto-detect project type and discover specialists fro
 2. Check test scripts in `package.json`
 3. Check coverage tooling
 
-## Step 6: Move Story and Create Branch
+## Step 6: Move Story and Activate Worktree
 
 1. Move item from "Ready" to "In Progress" on `Sprint/Board.md`
 2. Update story's **Status** to `In Progress`
-3. Create feature branch: `git checkout -b feature/STORY-<name> develop`
-4. Symlink gitignored files from main repo if needed (`.env`, `.env.local`, etc.)
+3. **Check if the extension already created the worktree** (when `/pickup` was called with a story name, the extension creates the worktree BEFORE delegating to this skill, and all bash calls are auto-routed to it):
+   ```bash
+   # Check if the extension has an active worktree via git worktree list
+   # The extension intercepts bash and prepends cd <worktree> automatically,
+   # so all commands here already run in the worktree directory.
+   echo "Worktree active — bash commands are auto-routed by the extension."
+   ```
+   If the worktree does NOT exist yet (e.g. the user typed `/skill:cadence-pickup` directly without the extension):
+   ```bash
+   git fetch origin
+   REPO_NAME=$(basename -s .git "$(git remote get-url origin 2>/dev/null || echo 'repo')" 2>/dev/null || echo "repo")
+   WORKTREE_DIR="../${REPO_NAME}-worktrees/STORY-<name>"
+   BASE_BRANCH=$(git rev-parse --verify develop 2>/dev/null && echo 'develop' || echo 'master')
+   git worktree add -b feature/STORY-<name> "$WORKTREE_DIR" "$BASE_BRANCH"
+   
+   # Symlink gitignored files
+   MAIN_REPO=$(git -C "$(git rev-parse --git-common-dir)" rev-parse --show-toplevel 2>/dev/null || echo "")
+   for f in .env .env.local .env.development .env.test; do
+     [ -f "$MAIN_REPO/$f" ] && [ ! -f "$f" ] && ln -s "$MAIN_REPO/$f" "$f"
+   done
+   ```
+
+4. **The extension auto-routes all bash commands** to the worktree directory. You do NOT need to `cd` — the extension intercepts every `bash` tool call and prepends `cd <worktree-path> &&` automatically. Commands like `npm test`, `git status`, `git push` all run inside the worktree.
+
+5. **Report** the worktree path and note that bash is auto-routed:
 
 ## Step 7: Present Development Brief
 

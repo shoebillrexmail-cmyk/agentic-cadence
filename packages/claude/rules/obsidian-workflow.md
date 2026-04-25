@@ -98,7 +98,7 @@ Roadmap (phases)
         └── Story (user-facing value, has acceptance criteria)
               ├── Tasks (checklist items within the story)
               ├── Specs (linked detailed documents in Specs/)
-              └── Branch: feature/STORY-<name>
+              └── Branch: feature/STORY-<name> (via git worktree)
 ```
 
 ---
@@ -361,7 +361,7 @@ Stories should NOT contain full specifications. Instead:
                 └──────────┘    └─────────────┘    └───────────┘    └──┬───┘
                                                                        │
                  Load specialists + prior learnings + TDD brief        │
-                 Enter isolated branch → TDD: RED → GREEN → IMPROVE   │
+                 Enter isolated worktree → TDD: RED → GREEN → IMPROVE   │
                                                                        │
                     ┌──────────────────────────────────────────────────┘
                     │  Complete story
@@ -620,7 +620,7 @@ These are intentionally non-configurable:
 - Ontology Gate in `cadence-story` Step 8 — always runs
 - Stage 1 mechanical checks in `cadence-review` — always run
 - Security reviewer invocation in `cadence-review` Stage 3 — always runs
-- Worktree rule — always enforced
+- Worktree rule (see ## Git Worktrees) — always enforced. Every story MUST use a worktree; zero exceptions.
 
 Only methodology tuning is overridable. Safety gates stay at the baseline.
 
