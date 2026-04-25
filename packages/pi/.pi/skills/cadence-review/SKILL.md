@@ -33,6 +33,9 @@ Missing parser / config file → proceed with defaults.
 1. Find vault path from AGENTS.md under `## Obsidian Project`
 2. Determine current story from branch name (`feature/STORY-<name>`)
 3. Read the story file for acceptance criteria and specialist context
+4. **Worktree awareness** — the extension auto-routes bash to the active worktree.
+   `git diff develop...HEAD` works identically from both the main repo and any worktree.
+   The extension's auto-routing means `git` and all other commands run in the worktree.
 
 Initialize: `cycle = 1`, `findings_ledger = []`
 

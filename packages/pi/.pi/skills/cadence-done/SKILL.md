@@ -11,6 +11,9 @@ Complete the current story and create a pull request.
 
 1. Find the vault path from AGENTS.md under `## Obsidian Project`
 2. Determine the current story from the branch name (`feature/STORY-<name>`)
+3. **Worktree awareness** — the extension auto-routes all bash commands to the active worktree.
+   Commands like `git push`, `git diff`, `npm test` already run inside the worktree.
+   No manual `cd` needed.
 3. Read the story file to get acceptance criteria
 
 ### Verification
@@ -51,3 +54,16 @@ Complete the current story and create a pull request.
    - Update indexes
 
 10. After review passes, move to "Done" on Sprint Board
+
+### Worktree Cleanup
+
+After the PR is merged (ask user to confirm merge first), clean up the worktree:
+
+Run:
+```
+/worktree remove <story-name>
+```
+
+This removes the worktree directory, deletes the merged feature branch, and deactivates worktree routing.
+
+Ask the user: "Worktree cleaned up. Continue working in the main repo, or pick up another story?"

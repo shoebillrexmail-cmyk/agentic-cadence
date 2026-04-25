@@ -20,7 +20,7 @@ Pi picks up:
 - 12 skills from [`.pi/skills/`](.pi/skills/)
 - Extension from [`.pi/extensions/cadence-flow.ts`](.pi/extensions/cadence-flow.ts) (session hook + shortcut commands)
 - Consolidated role definitions from [`.pi/prompts/shared-agents.md`](.pi/prompts/shared-agents.md)
-- Agile workflow rules from [`.pi/prompts/agile-workflow.md`](.pi/prompts/agile-workflow.md)
+- Cadence workflow rules from [`.pi/prompts/cadence.md`](.pi/prompts/cadence.md)
 
 ### Prerequisites
 
@@ -214,6 +214,6 @@ Hand-edit targets:
 - `packages/pi/build/*.md` — Pi-specific fragments merged into generated prompts
 - `shared/agents/<name>.md` — role definitions (regenerated into the consolidated `shared-agents.md`)
 
-**Do NOT hand-edit** `.pi/prompts/shared-agents.md` or `.pi/prompts/agile-workflow.md` — both are generated. Author in `shared/` and run `npm run build:pi`.
+**Do NOT hand-edit** `.pi/prompts/shared-agents.md` or `.pi/prompts/cadence.md` — both are generated. Author in `shared/` and run `npm run build:pi`.
 
 See the [repo-root README](../../README.md) for monorepo-level conventions.

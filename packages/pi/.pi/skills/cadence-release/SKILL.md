@@ -22,7 +22,17 @@ Missing parser / config file → proceed with defaults.
 ## Step 1: Context Discovery
 
 1. Find the project's vault path from `AGENTS.md` under `## Obsidian Project`
-2. Read the current branch — ensure you are on `develop` (or `master`; reject feature/hotfix branches)
+2. **Worktree check** — releases MUST run from the main repo, never from a worktree.
+   Run:
+   ```
+   /worktree status
+   ```
+   If an active worktree is shown, tell the user:
+   ```
+   /worktree exit
+   ```
+   first, then re-run the release skill. Releases operate on `develop` and `master` — these branches only exist in the main repo, not in worktrees.
+3. Read the current branch — ensure you are on `develop` (or `master`; reject feature/hotfix branches)
 
 ## Step 2: Determine what's shipping
 

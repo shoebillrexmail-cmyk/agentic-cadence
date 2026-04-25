@@ -60,6 +60,80 @@ git merge --ff-only origin/develop 2>/dev/null || true
 
 ---
 
+## Git Worktrees
+
+Git worktrees are the **mandatory** isolation mechanism for all story work. Every piece of code work MUST happen in a worktree — never directly on develop, master, or an in-repo feature branch.
+
+### Why Worktrees
+
+Worktrees allow multiple sessions to work on different stories simultaneously without interference:
+- Each worktree is a full working directory tied to its own branch
+- Shared git objects (no duplication)
+- No "dirty working tree" conflicts between sessions
+- Clean branch-per-story history
+
+### Worktree Directory Layout
+
+```
+C:\Github\my-project\                  ← main repo (develop branch)
+C:\Github\my-project-worktrees\
+  ├── STORY-auth-login\                ← worktree on feature/STORY-auth-login
+  ├── STORY-payment-flow\              ← worktree on feature/STORY-payment-flow
+  └── STORY-user-settings\             ← worktree on feature/STORY-user-settings
+```
+
+### Creating a Worktree
+
+```bash
+git fetch origin
+# Creates a worktree on a new feature branch from develop
+git worktree add -b feature/STORY-<name> ../<repo>-worktrees/STORY-<name> develop
+
+# Switch into it
+cd ../<repo>-worktrees/STORY-<name>
+```
+
+After entering a worktree, symlink gitignored files from the main repo:
+```bash
+MAIN_REPO=$(git -C "$(git rev-parse --git-common-dir)" rev-parse --show-toplevel 2>/dev/null || echo "")
+for f in .env .env.local .env.development .env.test; do
+  [ -f "$MAIN_REPO/$f" ] && [ ! -f "$f" ] && ln -s "$MAIN_REPO/$f" "$f"
+done
+```
+
+### Exiting / Cleaning Up a Worktree
+
+After the PR is merged (or if abandoned):
+
+```bash
+# From inside the worktree, return to main repo
+cd <path-to-main-repo>
+
+# Remove the worktree (cleans up the worktree directory + branch reference)
+git worktree remove ../<repo>-worktrees/STORY-<name>
+git branch -d feature/STORY-<name> 2>/dev/null || true
+```
+
+### Rules
+- NEVER commit directly to `master` or `develop` — always use a worktree
+- Every story gets its own worktree on a feature branch
+- Worktrees are short-lived (removed after PR merge)
+- Always `git fetch` before creating a new worktree
+- Symlink `.env` and other gitignored config files immediately after entering a worktree
+
+### Branch → Environment Mapping
+
+| Branch | Environment |
+|--------|-------------|
+| `feature/*`, `hotfix/*` (in worktree) | Preview |
+| `develop` (main repo) | Staging / Testnet |
+| `release/*` (main repo only) | Release Candidate |
+| `master` (main repo only) | Production / Mainnet |
+
+Releases and hotfixes always run from the **main repo**, never from a worktree.
+
+---
+
 
 ---
 

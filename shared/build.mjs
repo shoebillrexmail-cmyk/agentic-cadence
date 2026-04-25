@@ -301,11 +301,11 @@ ${core}
   mkdirSync(promptsDir, { recursive: true });
 
   writeFileSync(
-    resolve(promptsDir, "agile-workflow.md"),
+    resolve(promptsDir, "cadence.md"),
     agileWorkflow.trim() + "\n"
   );
 
-  console.log("   ✅ packages/pi/.pi/prompts/agile-workflow.md");
+  console.log("   ✅ packages/pi/.pi/prompts/cadence.md");
 
   // Consolidated shared agent reference for Pi skills to inline from
   const agents = readSharedAgents();
