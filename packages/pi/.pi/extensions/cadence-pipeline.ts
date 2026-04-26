@@ -51,10 +51,8 @@ export default function (pi: ExtensionAPI) {
   }
 
   // ── Check if story is already in progress ────────────
-  async function isStoryInProgress(storiesDir: string, storyName: string): Promise<boolean> {
+  async function isStoryInProgress(boardPath: string, storyName: string): Promise<boolean> {
     try {
-      const boardPath = await getBoardPath();
-      if (!boardPath) return false;
       const board = await readFile(boardPath, "utf8");
       const inProgress = board.split("## In Progress")[1];
       if (!inProgress) return false;
@@ -63,11 +61,6 @@ export default function (pi: ExtensionAPI) {
     } catch {
       return false;
     }
-  }
-
-  async function getBoardPath(): Promise<string | null> {
-    // This is set during command execution via ctx
-    return null; // Will be replaced with actual logic
   }
 
   // ── Register Pipeline Command ────────────────────────
@@ -239,13 +232,13 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    // Delegate to pipeline execution skill
+    // For now, the extension handles all logic inline.
+    // Future: delegate to cadence-pipeline skill for execution orchestration.
     const modeLabel = mode === "parallel" ? "parallel (multi-agent)" : "sequential (single-agent)";
     pi.sendUserMessage(
-      `[Pipeline] Starting ${modeLabel} pipeline with ${resolved.length} stories:\n` +
+      `[Pipeline] Pipeline ready: ${modeLabel} mode with ${resolved.length} stories:\n` +
       resolved.map((n) => `  - STORY-${n}`).join("\n") +
-      `\n\nDelegating to cadence-pipeline skill...\n` +
-      `/skill:cadence-pipeline start ${resolved.join(" ")} --mode ${mode}`
+      `\n\nStories resolved from vault. Execution modules are at \`shared/pipeline/\`.`
     );
   }
 
@@ -326,10 +319,10 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    // Delegate abort to the pipeline skill (which handles worker termination)
+    // Mark pipeline as aborted — future: terminate active workers
     pi.sendUserMessage(
-      `[Pipeline] Aborting pipeline "${id}"...\n` +
-      `/skill:cadence-pipeline abort ${id}`
+      `[Pipeline] Pipeline "${id}" aborted.\n` +
+      `State file preserved at: ${vault.pipelineDir}/${id}.md`
     );
 
     activePipelineId = null;
