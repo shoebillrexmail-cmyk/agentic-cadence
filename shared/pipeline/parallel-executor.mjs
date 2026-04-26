@@ -115,15 +115,16 @@ export async function executeParallelPipeline({
       runWorker(name);
     }
 
-    // Wait for at least one worker to complete
+    // Wait for at least one NEW worker to complete
     if (inFlight.size > 0) {
+      const prevCount = results.length;
       await new Promise((resolve) => {
         const check = setInterval(() => {
-          if (inFlight.size === 0 || results.length > 0) {
+          if (inFlight.size === 0 || results.length > prevCount) {
             clearInterval(check);
             resolve();
           }
-        }, 10);
+        }, 50);
       });
     }
 
