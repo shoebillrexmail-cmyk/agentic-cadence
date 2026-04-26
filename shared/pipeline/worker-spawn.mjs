@@ -9,7 +9,7 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { platform } from "node:os";
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 
 // ── buildWorkerPrompt ─────────────────────────────────
 
@@ -150,7 +150,6 @@ export async function writeArtifacts(dir, { input, output, events, meta }) {
 export function resolvePiCommand() {
   if (platform() === "win32") {
     try {
-      const { execSync } = require("node:child_process");
       const which = execSync("where pi", { encoding: "utf8" }).trim().split("\n")[0];
       if (which.endsWith(".cmd")) {
         return "pi";

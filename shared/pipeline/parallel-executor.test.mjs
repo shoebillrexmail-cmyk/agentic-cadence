@@ -62,7 +62,7 @@ describe("parallel-executor", () => {
       let maxConcurrent = 0;
       let currentConcurrent = 0;
 
-      const mockWorker = async (storyName) => {
+      const mockWorker = async ({ storyName }) => {
         currentConcurrent++;
         if (currentConcurrent > maxConcurrent) maxConcurrent = currentConcurrent;
         await new Promise((r) => setTimeout(r, 50));
@@ -89,7 +89,7 @@ describe("parallel-executor", () => {
       const pipelineDir = join(testDir, "par-pipeline-2");
       await mkdir(pipelineDir, { recursive: true });
 
-      const mockWorker = async (storyName) => ({
+      const mockWorker = async ({ storyName }) => ({
         exitCode: 0,
         events: [],
         output: `Done ${storyName}`,
@@ -117,7 +117,7 @@ describe("parallel-executor", () => {
     });
 
     it("should handle worker crash (abnormal exit)", async () => {
-      const mockWorker = async (storyName) => ({
+      const mockWorker = async ({ storyName }) => ({
         exitCode: storyName === "alpha" ? 1 : 0,
         events: [],
         output: "",

@@ -88,7 +88,7 @@ export async function executeSequentialPipeline({
     const artifactDir = join(artifactBaseDir, `STORY-${storyName}`);
     await mkdir(artifactDir, { recursive: true });
 
-    const workerResult = await spawnWorker(storyName);
+    const workerResult = await spawnWorker({ storyName });
 
     const completedAt = new Date().toISOString();
 

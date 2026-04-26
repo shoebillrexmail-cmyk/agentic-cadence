@@ -64,7 +64,7 @@ export async function executeParallelPipeline({
       await updateStatus(pipelineDir, pipelineId, storyName, "active").catch(() => {});
     }
 
-    const result = await spawnWorker(storyName);
+    const result = await spawnWorker({ storyName });
     const completedAt = new Date().toISOString();
 
     const exitCode = result.exitCode;

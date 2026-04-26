@@ -71,7 +71,7 @@ describe("sequential-executor", () => {
       ].join("\n"), "utf8");
 
       // Mock worker that succeeds
-      const mockWorker = async (storyName) => ({
+      const mockWorker = async ({ storyName }) => ({
         exitCode: 0,
         events: [{ type: "agent_start" }, { type: "agent_end" }],
         output: `Completed ${storyName}`,
@@ -118,7 +118,7 @@ describe("sequential-executor", () => {
       ].join("\n"), "utf8");
 
       // Alpha fails, beta depends on alpha, gamma is independent
-      const mockWorker = async (storyName) => ({
+      const mockWorker = async ({ storyName }) => ({
         exitCode: storyName === "alpha" ? 1 : 0,
         events: [],
         output: storyName === "alpha" ? "FAILED" : "OK",

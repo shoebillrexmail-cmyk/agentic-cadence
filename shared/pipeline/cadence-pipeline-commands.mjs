@@ -26,28 +26,17 @@ export function parsePipelineArgs(input) {
     let mode = "single";
     const filtered = [];
 
-    for (const part of rest) {
-      if (part === "--mode" || part === "-m") continue;
-      if (part === "parallel" && filtered.length === 0 && rest.includes("--mode")) {
-        mode = "parallel";
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] === "--mode" || rest[i] === "-m") {
+        const val = rest[++i];
+        if (val) mode = val;
         continue;
       }
-      if (part.startsWith("--mode=")) {
-        mode = part.split("=")[1] || "single";
+      if (rest[i]?.startsWith("--mode=")) {
+        mode = rest[i].split("=")[1] || "single";
         continue;
       }
-      filtered.push(part);
-    }
-
-    // Check if mode flag was before the value
-    if (rest.includes("--mode") || rest.includes("-m")) {
-      const modeIdx = rest.findIndex((p) => p === "--mode" || p === "-m");
-      if (modeIdx >= 0 && rest[modeIdx + 1] === "parallel") {
-        mode = "parallel";
-        // Remove the mode value from filtered
-        const valIdx = filtered.indexOf("parallel");
-        if (valIdx >= 0) filtered.splice(valIdx, 1);
-      }
+      filtered.push(rest[i]);
     }
 
     // Check for epic reference
