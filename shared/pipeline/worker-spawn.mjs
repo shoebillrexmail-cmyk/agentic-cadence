@@ -180,6 +180,7 @@ export function resolvePiCommand() {
  */
 export function spawnWorker({
   storyName,
+  storyContent,
   worktreePath,
   model,
   thinking,
@@ -190,7 +191,7 @@ export function spawnWorker({
   return new Promise(async (resolve, reject) => {
     // Write prompt to temp file
     const promptFile = join(artifactDir, "input.md");
-    const story = { name: storyName, content: `Story: ${storyName}` };
+    const story = { name: storyName, content: storyContent || `Story: ${storyName}` };
     const prompt = buildWorkerPrompt(story);
     await mkdir(artifactDir, { recursive: true });
     await writeFile(promptFile, prompt, "utf8");
