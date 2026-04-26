@@ -1,5 +1,5 @@
 /**
- * Pipeline state management — create, read, update pipeline state files
+ * Pipeline state management: create, read, update pipeline state files
  * and resolve story dependency graphs.
  *
  * State lives in `<vault>/Pipeline/PIPELINE-<id>.md` as human-readable Markdown.
@@ -11,10 +11,37 @@ import { randomUUID } from "node:crypto";
 
 // ── Types ─────────────────────────────────────────────
 
-/** @typedef {{"name": string, "status": string, "startedAt"?: string, "completedAt"?: string}} PipelineStory */
-/** @typedef {{"id": string, "mode": string, "createdAt": string, "stories": PipelineStory[]}} PipelineState */
+/** @typedef {{name: string, status: string, startedAt?: string, completedAt?: string}} PipelineStory */
+/** @typedef {{id: string, mode: string, createdAt: string, stories: PipelineStory[]}} PipelineState */
 
 const VALID_STATUSES = ["queued", "active", "done", "failed", "blocked"];
+const EM_DASH = "\u2014";
+
+// ── Serialization ─────────────────────────────────────
+
+function serializePipelineState(state) {
+  const shortName = state.id.replace(/^PIPELINE-/, "");
+  const storyLines = state.stories
+    .map((s) => `| ${s.name} | ${s.status} | ${s.startedAt || EM_DASH} | ${s.completedAt || EM_DASH} |`)
+    .join("\n");
+
+  return [
+    `# Pipeline: ${shortName}`,
+    "",
+    "```yaml",
+    `id: ${state.id}`,
+    `mode: ${state.mode}`,
+    `created_at: ${state.createdAt}`,
+    "```",
+    "",
+    "## Stories",
+    "",
+    "| Name | Status | Started | Completed |",
+    "|------|--------|---------|-----------|",
+    storyLines,
+    "",
+  ].join("\n");
+}
 
 // ── generatePipelineId ────────────────────────────────
 
@@ -40,33 +67,15 @@ export function generatePipelineId(epicName) {
 export async function createPipelineState(pipelineDir, { id, stories, mode }) {
   await mkdir(pipelineDir, { recursive: true });
 
-  const shortName = id.replace(/^PIPELINE-/, "");
-  const createdAt = new Date().toISOString();
-
-  const storyLines = stories
-    .map(
-      (name) =>
-        `| ${name} | queued | — | — |`
-    )
-    .join("\n");
-
-  const content = `# Pipeline: ${shortName}
-
-\`\`\`yaml
-id: ${id}
-mode: ${mode}
-created_at: ${createdAt}
-\`\`\`
-
-## Stories
-
-| Name | Status | Started | Completed |
-|------|--------|---------|-----------|
-${storyLines}
-`;
+  const state = {
+    id,
+    mode,
+    createdAt: new Date().toISOString(),
+    stories: stories.map((name) => ({ name, status: "queued" })),
+  };
 
   const filePath = join(pipelineDir, `${id}.md`);
-  await writeFile(filePath, content, "utf8");
+  await writeFile(filePath, serializePipelineState(state), "utf8");
   return filePath;
 }
 
@@ -89,7 +98,6 @@ export async function readPipelineState(pipelineDir, id) {
  * @returns {PipelineState}
  */
 export function parsePipelineState(content) {
-  // Extract YAML block
   const yamlMatch = content.match(/```yaml\n([\s\S]*?)```/);
   if (!yamlMatch) throw new Error("No YAML frontmatter in pipeline state");
 
@@ -100,21 +108,17 @@ export function parsePipelineState(content) {
 
   if (!idMatch) throw new Error("Missing id in pipeline state");
 
-  // Extract story table rows — split by lines, parse pipe-delimited columns
   const storyRows = [];
-  const lines = content.split("\n");
-  for (const line of lines) {
-    // Match table rows: | value | value | value | value |
+  for (const line of content.split("\n")) {
     const rowMatch = line.match(/^\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*$/);
     if (!rowMatch) continue;
     const name = rowMatch[1].trim();
-    // Skip header and separator rows
     if (name === "Name" || name.startsWith("---")) continue;
     storyRows.push({
       name,
       status: rowMatch[2].trim(),
-      startedAt: rowMatch[3].trim() === "\u2014" ? undefined : rowMatch[3].trim(),
-      completedAt: rowMatch[4].trim() === "\u2014" ? undefined : rowMatch[4].trim(),
+      startedAt: rowMatch[3].trim() === EM_DASH ? undefined : rowMatch[3].trim(),
+      completedAt: rowMatch[4].trim() === EM_DASH ? undefined : rowMatch[4].trim(),
     });
   }
 
@@ -150,38 +154,10 @@ export async function updateStoryStatus(pipelineDir, id, storyName, newStatus) {
 
   const now = new Date().toISOString();
   story.status = newStatus;
-  if (newStatus === "active" && !story.startedAt) {
-    story.startedAt = now;
-  }
-  if (newStatus === "done" || newStatus === "failed") {
-    story.completedAt = now;
-  }
+  if (newStatus === "active" && !story.startedAt) story.startedAt = now;
+  if (newStatus === "done" || newStatus === "failed") story.completedAt = now;
 
-  // Rewrite the file
-  const shortName = id.replace(/^PIPELINE-/, "");
-  const storyLines = state.stories
-    .map(
-      (s) =>
-        `| ${s.name} | ${s.status} | ${s.startedAt || "—"} | ${s.completedAt || "—"} |`
-    )
-    .join("\n");
-
-  const updated = `# Pipeline: ${shortName}
-
-\`\`\`yaml
-id: ${state.id}
-mode: ${state.mode}
-created_at: ${state.createdAt}
-\`\`\`
-
-## Stories
-
-| Name | Status | Started | Completed |
-|------|--------|---------|-----------|
-${storyLines}
-`;
-
-  await writeFile(join(pipelineDir, `${id}.md`), updated, "utf8");
+  await writeFile(join(pipelineDir, `${id}.md`), serializePipelineState(state), "utf8");
 }
 
 // ── parseDependsOn ────────────────────────────────────
@@ -193,27 +169,16 @@ ${storyLines}
  * @returns {string[]}
  */
 export function parseDependsOn(storyContent) {
-  // Match frontmatter between --- delimiters
   const fmMatch = storyContent.match(/^---\n([\s\S]*?)\n---/);
   if (!fmMatch) return [];
 
-  const frontmatter = fmMatch[1];
-  const depMatch = frontmatter.match(/Depends-On:\s*(.+)/i);
+  const depMatch = fmMatch[1].match(/Depends-On:\s*(.+)/i);
   if (!depMatch) return [];
 
   const raw = depMatch[1].trim();
-
-  // Array format: [a, b, c]
   if (raw.startsWith("[")) {
-    return raw
-      .replace(/^\[/, "")
-      .replace(/\]$/, "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    return raw.replace(/^\[/, "").replace(/\]$/, "").split(",").map((s) => s.trim()).filter(Boolean);
   }
-
-  // Single value
   return [raw];
 }
 
@@ -230,7 +195,7 @@ export function buildDependencyGraph(stories) {
 
   // Kahn's algorithm
   const inDegree = new Map();
-  const adj = new Map(); // name → names that depend on it
+  const adj = new Map();
 
   for (const s of stories) {
     inDegree.set(s.name, 0);
@@ -247,7 +212,6 @@ export function buildDependencyGraph(stories) {
     }
   }
 
-  // Self-dependency check
   for (const s of stories) {
     if (s.dependsOn.includes(s.name)) {
       throw new Error(`Circular dependency detected: ${s.name} depends on itself`);
@@ -263,21 +227,15 @@ export function buildDependencyGraph(stories) {
   while (queue.length > 0) {
     const current = queue.shift();
     order.push(current);
-
     for (const dependent of adj.get(current)) {
       inDegree.set(dependent, inDegree.get(dependent) - 1);
-      if (inDegree.get(dependent) === 0) {
-        queue.push(dependent);
-      }
+      if (inDegree.get(dependent) === 0) queue.push(dependent);
     }
   }
 
   if (order.length !== stories.length) {
-    // Find the cycle for the error message
     const remaining = stories.filter((s) => !order.includes(s.name)).map((s) => s.name);
-    throw new Error(
-      `Circular dependency detected among: ${remaining.join(" → ")}`
-    );
+    throw new Error(`Circular dependency detected among: ${remaining.join(" -> ")}`);
   }
 
   return order;
@@ -290,7 +248,7 @@ export function buildDependencyGraph(stories) {
  * - Status is "queued"
  * - All dependencies have status "done"
  * @param {PipelineStory[]} stories
- * @param {Object.<string, string[]>} depsMap - story name → dependency names
+ * @param {Object.<string, string[]>} depsMap - story name to dependency names
  * @returns {PipelineStory[]}
  */
 export function getReadyStories(stories, depsMap) {
