@@ -18,7 +18,7 @@ pi install git:github.com/shoebillrexmail-cmyk/agentic-cadence.git -l
 
 Pi picks up:
 - 12 skills from [`.pi/skills/`](.pi/skills/)
-- Extension from [`.pi/extensions/cadence-flow.ts`](.pi/extensions/cadence-flow.ts) (session hook + shortcut commands)
+- 2 extensions from [`.pi/extensions/`](.pi/extensions/) (session hook + shortcuts + pipeline commands)
 - Consolidated role definitions from [`.pi/prompts/shared-agents.md`](.pi/prompts/shared-agents.md)
 - Cadence workflow rules from [`.pi/prompts/cadence.md`](.pi/prompts/cadence.md)
 
@@ -82,7 +82,7 @@ All 12 skills, invoked as `/skill:cadence-<name>`:
 
 ### Shortcut commands
 
-The [extension](.pi/extensions/cadence-flow.ts) registers 6 shortcuts that alias common skills:
+The [cadence-flow extension](.pi/extensions/cadence-flow.ts) registers 6 shortcuts that alias common skills:
 
 | Shortcut | Same as |
 |----------|---------|
@@ -134,12 +134,65 @@ Verdicts: `PASS` (Hard Gates) · `FIX_REQUIRED` (Structured Repair R1/R2/R3) · 
 
 ---
 
-## Extension (session hook + shortcuts)
+## Extensions
+
+### cadence-flow.ts (session hook + shortcuts + worktree management)
 
 [`cadence-flow.ts`](.pi/extensions/cadence-flow.ts) replaces Claude Code's hooks with Pi's extension API:
 
 - **session_shutdown** — reads `AGENTS.md`, finds the Sprint Board path, scans for items under `## In Progress`, warns if any remain so you don't forget mid-story work
+- **Worktree management** — `/worktree create|list|remove|exit|status` for git worktree isolation per story
+- **Bash interception** — when a worktree is active, transparently routes all bash commands to the worktree directory
 - **Shortcut commands** — the six `/board`, `/pickup`, `/done`, `/review`, `/learn`, `/interview` aliases (see table above)
+
+### cadence-pipeline.ts (autonomous story execution)
+
+[`cadence-pipeline.ts`](.pi/extensions/cadence-pipeline.ts) registers `/pipeline` commands for autonomous multi-story execution:
+
+| Command | Description |
+|---------|------------|
+| `/pipeline start <stories...\|epic> [--mode single\|parallel]` | Start autonomous pipeline execution |
+| `/pipeline status [pipeline-id]` | Show pipeline progress |
+| `/pipeline abort [pipeline-id]` | Abort a running pipeline |
+
+The pipeline extension wires together the modules in `shared/pipeline/`:
+
+| Module | Purpose |
+|--------|---------|
+| `pipeline-state.mjs` | Create, read, update pipeline state files in `<vault>/Pipeline/` |
+| `cadence-pipeline-commands.mjs` | Argument parsing, story resolution, status formatting |
+| `worker-spawn.mjs` | Spawn Pi subprocess workers using `--mode json -p` |
+| `sequential-executor.mjs` | Single-agent mode — stories run one at a time in dependency order |
+| `parallel-executor.mjs` | Multi-agent mode — bounded concurrency with dynamic dependency scheduling |
+| `pipeline-visibility.mjs` | Progress display, completion summaries, log files |
+| `pipeline-resilience.mjs` | Transient error detection, model fallback chains, human escalation |
+
+**Pipeline modes:**
+- **`single`** (sequential) — one Pi worker at a time. Stories execute in topological order respecting `Depends-On` declarations. If a story fails, all dependent stories are marked `blocked` (exit code -1). Independent stories after the failure still run.
+- **`parallel`** — up to `maxConcurrency` workers (default 3) run simultaneously. Dependency-aware: a story only starts when all its declared dependencies are `done`. Failed stories cause dependents to be skipped. PR merges are serialized via a FIFO queue to prevent git conflicts.
+
+**How it works:**
+1. `/pipeline start` resolves story names from the vault (or extracts them from an epic file via `[[STORY-xxx]]` wiki links)
+2. Skips stories already "In Progress" on the sprint board (manual work priority guard)
+3. Creates a pipeline state file at `<vault>/Pipeline/PIPELINE-<id>.md`
+4. Spawns Pi workers using `--mode json -p` — each worker gets a fresh subprocess with its own context window (no context pollution between stories)
+5. Workers run the full cadence lifecycle: TDD (RED → GREEN → IMPROVE) → commit → push → PR
+6. The orchestrator tracks state, handles failures, and updates the pipeline state file
+
+**Resilience features:**
+- Transient error detection (rate limits, timeouts, 5xx errors) with automatic model fallback chains
+- Consecutive failure pause (default: 2 failures → pause and escalate to user)
+- Human-in-the-loop escalation with structured findings and options
+- Recursion guard: workers set `PI_SUBAGENT_MAX_DEPTH=1` to prevent sub-agent spawning
+
+**Configuration** (in `## Cadence Config` in `AGENTS.md`):
+
+```yaml
+pipeline.worker_model: deepseek/deepseek-r1        # Model for worker subprocesses
+pipeline.worker_thinking: high                       # Thinking level for workers
+pipeline.fallback_models: huggingface/qwen-2.5-coder # Comma-separated fallback chain
+pipeline.max_concurrency: 3                          # Parallel mode: max simultaneous workers
+```
 
 ---
 
@@ -175,6 +228,7 @@ Full key list, defaults, and safety-critical non-configurable gates are document
 | Config parser path | `${CLAUDE_SKILL_DIR}/parse-cadence-config.mjs` (env var) | `{baseDir}/parse-cadence-config.mjs` (text placeholder) |
 | Session-end hook | `Stop` hook → `check-board.js` | Extension `session_shutdown` event |
 | Shortcut commands | None (use full `/cadence:*` names) | 6 shortcuts via extension |
+| Pipeline execution | Not available | `/pipeline start` with sequential or parallel mode |
 | Context file | `CLAUDE.md` | `AGENTS.md` |
 
 Aside from the above, everything else is the same — same 20 roles, same review pipeline, same story format, same ontology gate, same Cadence Config knobs.
@@ -199,6 +253,10 @@ That's the board warning — if you have items in "In Progress", Pi reminds you 
 
 Shortcuts are registered by [`cadence-flow.ts`](.pi/extensions/cadence-flow.ts). Confirm the extension is loaded: `pi extensions list`. Reinstalling the package re-registers them.
 
+### `/pipeline` commands not recognized
+
+Pipeline commands are registered by [`cadence-pipeline.ts`](.pi/extensions/cadence-pipeline.ts). It coexists with `cadence-flow.ts` — no conflicts. If `/pipeline` doesn't appear, check that both extensions are loaded. The pipeline modules in `shared/pipeline/` must be present in the project (they are not bundled with the extension).
+
 ---
 
 ## Development
@@ -210,7 +268,9 @@ npm test                  # Config parser tests (26 cases)
 
 Hand-edit targets:
 - `packages/pi/.pi/skills/<name>/SKILL.md` — the skill logic
-- `packages/pi/.pi/extensions/cadence-flow.ts` — session hooks + shortcut commands
+- `packages/pi/.pi/extensions/cadence-flow.ts` — session hooks + shortcut commands + worktree management
+- `packages/pi/.pi/extensions/cadence-pipeline.ts` — pipeline commands (`/pipeline start|status|abort`)
+- `shared/pipeline/*.mjs` — pipeline execution modules (state, workers, executors, resilience)
 - `packages/pi/build/*.md` — Pi-specific fragments merged into generated prompts
 - `shared/agents/<name>.md` — role definitions (regenerated into the consolidated `shared-agents.md`)
 
