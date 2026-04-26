@@ -29,7 +29,7 @@ Agentic Cadence runs in two different coding agents. Pick one and follow its REA
 | Runtime | Install via | Commands | Deep-dive README |
 |---------|------------|----------|------------------|
 | **Claude Code** | `bash packages/claude/install.sh` + plugin install | `/cadence:<name>` | [packages/claude/README.md](packages/claude/README.md) |
-| **Pi** | `pi install git:github.com/shoebillrexmail-cmyk/agentic-cadence.git` | `/skill:cadence-<name>` + shortcuts | [packages/pi/README.md](packages/pi/README.md) |
+| **Pi** | `pi install git:github.com/shoebillrexmail-cmyk/agentic-cadence.git` | `/skill:cadence-<name>` + shortcuts + `/pipeline` | [packages/pi/README.md](packages/pi/README.md) |
 
 Both runtimes implement the same conventions (defined in `shared/core.md`). Differences live in the per-package READMEs.
 
@@ -45,6 +45,7 @@ agentic-cadence/
 │   ├── build.mjs                        # Regenerates packages from shared core
 │   ├── scripts/parse-cadence-config.mjs # Canonical config parser (copied into each skill on build)
 │   ├── agents/                          # 20 shared agent definitions (canonical)
+│   ├── pipeline/                        # Pipeline execution modules (state, workers, executors, resilience)
 │   └── templates/vault/                 # 13 Obsidian templates
 │
 ├── packages/
@@ -127,8 +128,12 @@ Icebox → [Optional: /cadence:interview] → Needs Refinement → Refined → R
                                                                           │
 Sprint Board:                                                              ▼
   Ready → In Progress → In Review → Done
-                          │
-                   PR → /cadence:review (4-stage) → Hard Gates → /cadence:learn
+                          │                │
+                   PR → /cadence:review    /pipeline start (Pi only)
+                          │                │
+                    Hard Gates         Sequential or Parallel
+                          │                │
+                    /cadence:learn      Autonomous workers
 ```
 
 ### Review pipeline (every story in review goes through this)
